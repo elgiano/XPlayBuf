@@ -4,6 +4,8 @@ Author: Gianluca Elia
 
 A buffer player that can loop and fade
 
+Motivation: 
+
 ### Requirements
 
 - CMake >= 3.5
