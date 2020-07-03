@@ -7,6 +7,13 @@
 
 namespace XPlayBuf {
 
+struct Loop{
+  double phase = -1.;
+  double start = -1.;
+  double end = -1.;
+  double samples = 0.;
+};
+
 class XPlayBuf;
 typedef void (XPlayBuf::*FadeFunc)(int, int, float, double);
 
@@ -22,22 +29,21 @@ private:
     void next(int nSamples);
     bool getBuf(int nSamples);
     void readInputs();
+    void updateLoop();
 
-    double wrapPos(double pos);
-    void loopBody4(int nSamples, int sampleIndex, double& pos, FadeFunc writeFunc, double mix);
+    bool wrapPos(Loop& loop);
+    void loopBody4(const int nSamples, const int sampleIndex, const Loop loop, FadeFunc writeFunc, double mix);
 
     void write(int channel, int SAMPLE_INDEX, float in, double mix);
     void overwrite_equalPower(int channel, int SAMPLE_INDEX, float in, double mix);
     void overwrite_lin(int channel, int SAMPLE_INDEX, float in, double mix);
 
     // Member variables
-    double m_phase;
-    double mPrevPhase;
+    Loop currLoop;
+    Loop prevLoop;
+
     double mPlaybackRate;
     int32 mLoop;
-    float mLoopStart;
-    float mLoopEnd;
-    float mLoopSamples;
     float m_prevtrig;
     float m_fbufnum;
     float m_failedBufNum;
