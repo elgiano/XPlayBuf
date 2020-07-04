@@ -21,6 +21,7 @@ I strongly support [esluyter/super-bufrd](https://github.com/esluyter/super-bufr
 ### TODO
 - Loops across buffer boundaries
 - Linear and no interpolation
+- .kr method
 - UnitTests
 
 ### Requirements
