@@ -15,7 +15,8 @@ struct Loop {
 };
 
 class XPlayBuf;
-typedef void (XPlayBuf::*FadeFunc)(int, int, float, double);
+typedef void (XPlayBuf::*FadeFunc)(const int &, const int &, const float &,
+                                   const double &);
 
 class XPlayBuf : public SCUnit {
 public:
@@ -32,13 +33,16 @@ private:
   void updateLoop();
 
   bool wrapPos(Loop &loop);
-  void loopBody4(const int nSamples, const int sampleIndex, const Loop loop,
+  double getFadeAtBounds(const Loop &loop);
+  void loopBody4(const int &nSamples, const int &outSample, const Loop &loop,
                  FadeFunc writeFunc, double mix);
 
-  void write(int channel, int SAMPLE_INDEX, float in, double mix);
-  void overwrite_equalPower(int channel, int SAMPLE_INDEX, float in,
-                            double mix);
-  void overwrite_lin(int channel, int SAMPLE_INDEX, float in, double mix);
+  void write(const int &channel, const int &OUT_SAMPLE, const float &in,
+             const double &mix);
+  void overwrite_equalPower(const int &channel, const int &OUT_SAMPLE,
+                            const float &in, const double &mix);
+  void overwrite_lin(const int &channel, const int &OUT_SAMPLE, const float &in,
+                     const double &mix);
 
   // Member variables
   Loop currLoop;

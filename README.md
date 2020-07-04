@@ -13,16 +13,20 @@ I strongly support [esluyter/super-bufrd](https://github.com/esluyter/super-bufr
 ### Features
 
 - All parameters are required in seconds, as opposed to samples;
-- Cross-fades when skipping to new positions on trigger;
-- Fades to silence when approaching loop start and end positions;
-- Loop boundaries are updated only on trigger;
+- Fades:
+  - Cross-fades when skipping to new positions on trigger;
+  - Fades to silence when approaching loop start and end positions;
+- Loop boundaries:
+  - are updated only on trigger;
+  - can loop across buffer end (e.g. a loop of 10s from BufDur - 5s to 5s)
 - Modulateable fadeTime, with a choice between linear or equal-power fades.
 
 ### TODO
-- Loops across buffer boundaries
 - Linear and no interpolation
 - .kr method
+- adjust fadeTime and/or loopDur to playback rate?
 - UnitTests
+- ~~Loops across buffer boundaries~~
 
 ### Requirements
 
