@@ -2,9 +2,26 @@
 
 Author: Gianluca Elia
 
-A buffer player that can loop and fade
+A buffer player that can loop and fade, while not suffering from the "float precision issue"
 
-Motivation: 
+### Motivations
+There is a precision problem when using Phasor/BufRd, which becomes particularly annoying for long buffers or slow play rates.
+PlayBuf overcomes it by storing an internal phase as a double, with the drawback that current phase information is not accessible. Since I primarily use playback position to do anti-click fades, I wrote a UGen that does it internally, so that it can both benefit from double precision and not click.
+
+I strongly support [esluyter/super-bufrd](https://github.com/esluyter/super-bufrd) as an effort to manage double precision AND communication of (precise) current phase. It's great and super promising, but it adds a good deal of complexity (e.g. number of UGens, CPU usage...) that I prefer to avoid unless I have a very good reason to want that precise phase information (and not only for anti-click fades). So that I can happily instantiate around a hundred XPlayBufs without saturating my CPU or having too big SynthDefs.
+
+### Features
+
+- All parameters are required in seconds, as opposed to samples;
+- Cross-fades when skipping to new positions on trigger;
+- Fades to silence when approaching loop start and end positions;
+- Loop boundaries are updated only on trigger;
+- Modulateable fadeTime, with a choice between linear or equal-power fades.
+
+### TODO
+- Loops across buffer boundaries
+- Linear and no interpolation
+- UnitTests
 
 ### Requirements
 

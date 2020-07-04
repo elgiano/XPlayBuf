@@ -7,20 +7,83 @@ description::
 
 A buffer player that can loop and fade
 
+All time parameters (startPos, loopDur, fadeTime) are given in seconds.
+Playback rate is automatically adjusted by link::Classes/BufRateScale::.
+Crossfades when skipping to new positions on trigger, and fades to silence on loop boundaries.
 
 classmethods::
 
-method::ar, kr
+method::ar
 
-argument::TODO
+argument::numChannels
+Number of channels that the buffer will be. This must be a fixed
+integer. The architecture of the SynthDef cannot change after it
+is compiled.
 
-argument::TODO
+argument::bufnum
+The index of the buffer to use.
+note::
+If you supply a bufnum of a buffer with a differing number of channels
+than the one specified in this PlayBuf, it will post a warning and output the channels it can.
+::
 
+argument::rate
+automatically adjusted by the buffer's rateScale, 1.0 is original speed, 2.0 is one octave up, 0.5 is one
+octave down -1.0 is backwards normal rate… etc. Interpolation is cubic.
+
+argument::trigger
+A trigger causes a jump to the startPos, and updates loop boundaries.
+A trigger occurs when a signal changes from negative value to positive value.
+
+argument::startPos
+Position in seconds to start playback. Playback won't jump here on change, only on trigger.
+
+argument::loopDur
+Duration in seconds of the loop. Modulateable, but will only update on trigger.
+If set to -1 will default to the buffer's duration.
+If loop is set to 0 (i.e. not looping), playback ends after loopDur seconds, and the UGen's done flag is set
+
+argument::loop
+1 means true, 0 means false. This is modulateable.
+
+argument::fadeDur
+Duration in seconds of all crossfades, both on triggers and at loop boundaries
+
+argument::expFade
+0 is linear fades, 1 is equal power
+
+note::
+there is no doneAction, please use link::Classes/Done:: or link::Classes/FreeSelfWhenDone::
+::
+note::
+there is also no reset position, such as the one provided by link::Classes/Phasor::
+::
 
 examples::
 
 code::
+b = Buffer.read(s, Platform.resourceDir +/+ "sounds/a11wlk01.wav")
+// no loop: play-through
+{ XPlayBuf.ar(2, b) }.play;
 
-{ XPlayBuf.ar(/* TODO */) }.play
+// one second loop
+{ XPlayBuf.ar(2, b, startPos:1, loopDur:1, loop:1) }.play;
+
+// skip around
+{
+  var start = LFNoise0.kr(1).range(0,BufDur.ir(b));
+  XPlayBuf.ar(2, b, trigger: Changed.kr(start), startPos:start, loopDur:0.1, loop:1);
+}.play;
+
+// rate: same intervals, auto-adjusting to differences in sampling rate between server and buffer
+// try it by booting the server at different sampling rates
+
+x = { XPlayBuf.ar(2, b, \rate.kr(1), startPos:1, loopDur:1, loop:1) }.play;
+x.set(\rate, 1); // original speed
+x.set(\rate, 2); // octave above
+x.set(\rate, 0.5); // octave below
+
+// freeing the synth
+{p = XPlayBuf.ar(1,b, loopDur: 1, loop:0); FreeSelfWhenDone.kr(p); p}.play.onFree{"FREE".postln}
 
 ::
