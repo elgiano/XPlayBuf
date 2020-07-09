@@ -52,6 +52,9 @@ Duration in seconds of all crossfades, both on triggers and at loop boundaries
 argument::expFade
 0 is linear fades, 1 is equal power
 
+argument::interpolation
+0: no interpolation, 1: liner interpolation, 2: cubic interpolation (default)
+
 note::
 there is no doneAction, please use link::Classes/Done:: or link::Classes/FreeSelfWhenDone::
 ::

@@ -17,7 +17,9 @@ struct Loop {
 class XPlayBuf;
 typedef void (XPlayBuf::*FadeFunc)(const int &, const int &, const float &,
                                    const double &);
-
+typedef void (XPlayBuf::*LoopFunc)(const int &nSamples, const int &outSample,
+                                   const Loop &loop, const FadeFunc writeFunc,
+                                   double mix);
 class XPlayBuf : public SCUnit {
 public:
   XPlayBuf();
@@ -32,10 +34,14 @@ private:
   void readInputs();
   void updateLoop();
 
-  bool wrapPos(Loop &loop);
-  double getFadeAtBounds(const Loop &loop);
-  void loopBody4(const int &nSamples, const int &outSample, const Loop &loop,
-                 FadeFunc writeFunc, double mix);
+  bool wrapPos(Loop &loop) const;
+  double getFadeAtBounds(const Loop &loop) const;
+  void loopBody_nointerp(const int &nSamples, const int &outSample,
+                         const Loop &loop, const FadeFunc writeFunc, double mix);
+  void loopBody_lininterp(const int &nSamples, const int &outSample,
+                          const Loop &loop, const FadeFunc writeFunc, double mix);
+  void loopBody_cubicinterp(const int &nSamples, const int &outSample,
+                            const Loop &loop, const FadeFunc writeFunc, double mix);
 
   void write(const int &channel, const int &OUT_SAMPLE, const float &in,
              const double &mix);
@@ -57,6 +63,7 @@ private:
   double m_rFadeSamples;
   double m_remainingFadeSamples;
   FadeFunc mFadeFunc;
+  LoopFunc mLoopFunc;
   SndBuf *m_buf;
 };
 

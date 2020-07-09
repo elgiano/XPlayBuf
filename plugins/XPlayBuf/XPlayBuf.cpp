@@ -6,6 +6,27 @@
 
 static InterfaceTable *ft;
 
+#define CHECK_BUFFER_DATA                                                      \
+  if (!bufData) {                                                              \
+    if (unit->mWorld->mVerbosity > -1 && !unit->mDone &&                       \
+        (unit->m_failedBufNum != fbufnum)) {                                   \
+      Print("Buffer UGen: no buffer data\n");                                  \
+      unit->m_failedBufNum = fbufnum;                                          \
+    }                                                                          \
+    ClearUnitOutputs(unit, inNumSamples);                                      \
+    return;                                                                    \
+  } else {                                                                     \
+    if (bufChannels != numOutputs) {                                           \
+      if (unit->mWorld->mVerbosity > -1 && !unit->mDone &&                     \
+          (unit->m_failedBufNum != fbufnum)) {                                 \
+        Print("Buffer UGen channel mismatch: expected %i, yet buffer has %i "  \
+              "channels\n",                                                    \
+              numOutputs, bufChannels);                                        \
+        unit->m_failedBufNum = fbufnum;                                        \
+      }                                                                        \
+    }                                                                          \
+  }
+
 namespace XPlayBuf {
 
 XPlayBuf::XPlayBuf() {
@@ -47,20 +68,9 @@ void XPlayBuf::overwrite_lin(const int &channel, const int &OUT_SAMPLE,
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // main loop
 
-#define LOOP_INNER_BODY_4(WRITE_FUNC, MIX)                                     \
-  float a = table0[index];                                                     \
-  float b = table1[index];                                                     \
-  float c = table2[index];                                                     \
-  float d = table3[index];                                                     \
-  (this->*WRITE_FUNC)(channel, outSample, cubicinterp(fracphase, a, b, c, d),  \
-                      MIX);
-
-inline bool XPlayBuf::wrapPos(Loop &loop) {
+inline bool XPlayBuf::wrapPos(Loop &loop) const{
   // avoid the divide if possible
-  while (loop.phase < 0)
-    loop.phase += m_buf->frames;
-  while (loop.phase > m_buf->frames)
-    loop.phase -= m_buf->frames;
+  loop.phase = sc_wrap(loop.phase, 0., static_cast<double>(m_buf->frames));
 
   if (loop.samples < 0) {
     if (!(loop.phase > loop.end && loop.phase < loop.start) ||
@@ -104,7 +114,7 @@ inline bool XPlayBuf::wrapPos(Loop &loop) {
   return false;
 }
 
-double XPlayBuf::getFadeAtBounds(const Loop &loop) {
+double XPlayBuf::getFadeAtBounds(const Loop &loop) const{
   double distance, mix = 1.;
   // loop start
   distance = loop.phase - loop.start;
@@ -129,8 +139,100 @@ double XPlayBuf::getFadeAtBounds(const Loop &loop) {
   return mix;
 }
 
-void XPlayBuf::loopBody4(const int &nSamples, const int &outSample,
-                         const Loop &loop, FadeFunc writeFunc, double mix) {
+#define LOOP_CUBIC(WRITE_FUNC, MIX)                                            \
+  float a = table0[index];                                                     \
+  float b = table1[index];                                                     \
+  float c = table2[index];                                                     \
+  float d = table3[index];                                                     \
+  (this->*WRITE_FUNC)(channel, outSample, cubicinterp(fracphase, a, b, c, d),  \
+                      MIX);
+
+#define LOOP_LINEAR(WRITE_FUNC, MIX)                                           \
+  float b = table1[index];                                                     \
+  float c = table2[index];                                                     \
+  (this->*WRITE_FUNC)(channel, outSample, b + fracphase * (c - b), MIX);
+
+#define LOOP_NOINTERP(WRITE_FUNC, MIX)                                         \
+  (this->*WRITE_FUNC)(channel, outSample, table1[index], MIX);
+
+#define LOOP_INIT                                                              \
+  int bufChannels = m_buf->channels;                                           \
+  int guardFrame = m_buf->frames - 2;                                          \
+  mix *= getFadeAtBounds(loop);                                                \
+  int32 iphase = (int32)loop.phase;
+
+void XPlayBuf::loopBody_nointerp(const int &nSamples, const int &outSample,
+                                 const Loop &loop, const FadeFunc writeFunc,
+                                 double mix) {
+  LOOP_INIT
+  const float *table1 = m_buf->data + iphase * bufChannels;
+  int32 index = 0;
+  int numOuts = numOutputs();
+  if (numOuts == bufChannels) {
+    for (uint32 channel = 0; channel < numOuts; ++channel) {
+      LOOP_NOINTERP(writeFunc, mix)
+      index++;
+    }
+  } else if (numOuts < bufChannels) {
+    for (uint32 channel = 0; channel < numOuts; ++channel) {
+      LOOP_NOINTERP(writeFunc, mix)
+      index++;
+    }
+    index += (bufChannels - numOuts);
+  } else {
+    for (uint32 channel = 0; channel < bufChannels; ++channel) {
+      LOOP_NOINTERP(writeFunc, mix)
+      index++;
+    }
+    for (uint32 channel = bufChannels; channel < numOuts; ++channel) {
+      out(channel)[outSample] = 0.f;
+      index++;
+    }
+  }
+}
+
+void XPlayBuf::loopBody_lininterp(const int &nSamples, const int &outSample,
+                                  const Loop &loop, const FadeFunc writeFunc,
+                                  double mix) {
+  LOOP_INIT
+  const float *table1 = m_buf->data + iphase * bufChannels;
+  const float *table2 = table1 + bufChannels;
+  if (iphase > guardFrame) {
+    if (mLoop) {
+      table2 -= m_buf->samples;
+    } else {
+      table2 -= bufChannels;
+    }
+  }
+  int32 index = 0;
+  float fracphase = loop.phase - (double)iphase;
+  int numOuts = numOutputs();
+  if (numOuts == bufChannels) {
+    for (uint32 channel = 0; channel < numOuts; ++channel) {
+      LOOP_LINEAR(writeFunc, mix)
+      index++;
+    }
+  } else if (numOuts < bufChannels) {
+    for (uint32 channel = 0; channel < numOuts; ++channel) {
+      LOOP_LINEAR(writeFunc, mix)
+      index++;
+    }
+    index += (bufChannels - numOuts);
+  } else {
+    for (uint32 channel = 0; channel < bufChannels; ++channel) {
+      LOOP_LINEAR(writeFunc, mix)
+      index++;
+    }
+    for (uint32 channel = bufChannels; channel < numOuts; ++channel) {
+      out(channel)[outSample] = 0.f;
+      index++;
+    }
+  }
+}
+
+void XPlayBuf::loopBody_cubicinterp(const int &nSamples, const int &outSample,
+                                    const Loop &loop, const FadeFunc writeFunc,
+                                    double mix) {
   int bufChannels = m_buf->channels;
   int guardFrame = m_buf->frames - 2;
   mix *= getFadeAtBounds(loop);
@@ -141,21 +243,21 @@ void XPlayBuf::loopBody4(const int &nSamples, const int &outSample,
   const float *table3 = table2 + bufChannels;
   if (iphase == 0) {
     if (mLoop) {
-      table0 += m_buf->samples; // static_cast<int>(loop.samples);
+      table0 += m_buf->samples;
     } else {
       table0 += bufChannels;
     }
   } else if (iphase >= guardFrame) {
     if (iphase == guardFrame) {
       if (mLoop) {
-        table3 -= m_buf->samples; // static_cast<int>(loop.samples);
+        table3 -= m_buf->samples;
       } else {
         table3 -= bufChannels;
       }
     } else {
       if (mLoop) {
-        table2 -= m_buf->samples; // static_cast<int>(loop.samples);
-        table3 -= m_buf->samples; // static_cast<int>(loop.samples);
+        table2 -= m_buf->samples;
+        table3 -= m_buf->samples;
       } else {
         table2 -= bufChannels;
         table3 -= 2 * bufChannels;
@@ -167,18 +269,18 @@ void XPlayBuf::loopBody4(const int &nSamples, const int &outSample,
   int numOuts = numOutputs();
   if (numOuts == bufChannels) {
     for (uint32 channel = 0; channel < numOuts; ++channel) {
-      LOOP_INNER_BODY_4(writeFunc, mix)
+      LOOP_CUBIC(writeFunc, mix)
       index++;
     }
   } else if (numOuts < bufChannels) {
     for (uint32 channel = 0; channel < numOuts; ++channel) {
-      LOOP_INNER_BODY_4(writeFunc, mix)
+      LOOP_CUBIC(writeFunc, mix)
       index++;
     }
     index += (bufChannels - numOuts);
   } else {
     for (uint32 channel = 0; channel < bufChannels; ++channel) {
-      LOOP_INNER_BODY_4(writeFunc, mix)
+      LOOP_CUBIC(writeFunc, mix)
       index++;
     }
     for (uint32 channel = bufChannels; channel < numOuts; ++channel) {
@@ -273,6 +375,19 @@ void XPlayBuf::readInputs() {
 
   mFadeFunc =
       in0(7) > 0 ? &XPlayBuf::overwrite_equalPower : &XPlayBuf::overwrite_lin;
+
+  int interp = static_cast<int>(in0(8));
+  switch (interp) {
+  case 0:
+    mLoopFunc = &XPlayBuf::loopBody_nointerp;
+    break;
+  case 1:
+    mLoopFunc = &XPlayBuf::loopBody_lininterp;
+    break;
+  default:
+    mLoopFunc = &XPlayBuf::loopBody_cubicinterp;
+    break;
+  }
 }
 
 void XPlayBuf::next(int nSamples) {
@@ -283,12 +398,12 @@ void XPlayBuf::next(int nSamples) {
 
   for (int i = 0; i < nSamples; ++i) {
     mDone = wrapPos(currLoop);
-    loopBody4(nSamples, i, currLoop, &XPlayBuf::write, 1);
+    (this->*mLoopFunc)(nSamples, i, currLoop, &XPlayBuf::write, 1);
     currLoop.phase += mPlaybackRate;
     if (m_remainingFadeSamples > 0) {
       wrapPos(prevLoop);
-      loopBody4(nSamples, i, prevLoop, mFadeFunc,
-                m_remainingFadeSamples * m_rFadeSamples);
+      (this->*mLoopFunc)(nSamples, i, prevLoop, mFadeFunc,
+                         m_remainingFadeSamples * m_rFadeSamples);
       m_remainingFadeSamples -= sc_abs(mPlaybackRate);
       prevLoop.phase += mPlaybackRate;
     }
