@@ -1,7 +1,7 @@
 class:: XPlayBuf
 summary:: A buffer player that can loop and fade
-related:: TODO
-categories:: UGens>TODO
+related:: Classes/PlayBuf
+categories:: UGens>Buffer
 
 description::
 
@@ -24,7 +24,7 @@ argument::bufnum
 The index of the buffer to use.
 note::
 If you supply a bufnum of a buffer with a differing number of channels
-than the one specified in this PlayBuf, it will post a warning and output the channels it can.
+than the one specified in this XPlayBuf, it will post a warning and output the channels it can.
 ::
 
 argument::rate
@@ -39,17 +39,20 @@ argument::startPos
 Position in seconds to start playback. Playback won't jump here on change, only on trigger.
 
 argument::loopDur
-Duration in seconds of the loop. Modulateable, but will only update on trigger.
-If set to -1 will default to the buffer's duration.
-If loop is set to 0 (i.e. not looping), playback ends after loopDur seconds, and the UGen's done flag is set
+Loop duration in seconds. Defaults to -1,  which means the buffer's total duration.
+If loop is set to 0 (i.e. not looping), playback ends after loopDur seconds, and the UGen's done flag is set.
+This is modulateable, but will only update on trigger.
+note::
+This is not an absolute duration: it specifies the loop duration at playback rate = 1. So, for instance, if loopDur=1 and rate=2, XPlayBuf will still loop over 1 second of recorded material, but each iteration will last 0.5 seconds.
+::
 
 argument::loop
 1 means true, 0 means false. This is modulateable.
 
-argument::fadeDur
+argument::fadeTime
 Duration in seconds of all crossfades, both on triggers and at loop boundaries
 
-argument::expFade
+argument::equalPower
 0 is linear fades, 1 is equal power
 
 argument::interpolation
@@ -65,23 +68,28 @@ there is also no reset position, such as the one provided by link::Classes/Phaso
 examples::
 
 code::
-b = Buffer.read(s, Platform.resourceDir +/+ "sounds/a11wlk01.wav")
+(
+s.waitForBoot{
+    b = Buffer.read(s, Platform.resourceDir +/+ "sounds/a11wlk01.wav")
+};
+)
+
 // no loop: play-through
-{ XPlayBuf.ar(2, b) }.play;
+{ XPlayBuf.ar(1, b) }.play;
 
 // one second loop
-{ XPlayBuf.ar(2, b, startPos:1, loopDur:1, loop:1) }.play;
+{ XPlayBuf.ar(1, b, startPos:1, loopDur:1, loop:1) }.play;
 
 // skip around
 {
   var start = LFNoise0.kr(1).range(0,BufDur.ir(b));
-  XPlayBuf.ar(2, b, trigger: Changed.kr(start), startPos:start, loopDur:0.1, loop:1);
+  XPlayBuf.ar(1, b, trigger: Changed.kr(start), startPos:start, loopDur:0.1, loop:1);
 }.play;
 
 // rate: same intervals, auto-adjusting to differences in sampling rate between server and buffer
 // try it by booting the server at different sampling rates
 
-x = { XPlayBuf.ar(2, b, \rate.kr(1), startPos:1, loopDur:1, loop:1) }.play;
+x = { XPlayBuf.ar(1, b, \rate.kr(1), startPos:1, loopDur:1, loop:1) }.play;
 x.set(\rate, 1); // original speed
 x.set(\rate, 2); // octave above
 x.set(\rate, 0.5); // octave below
