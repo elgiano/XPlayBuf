@@ -29,7 +29,9 @@ public:
 
 private:
   // Calc function
-  void next(int nSamples);
+  void next_nointerp(int nSamples);
+  void next_lininterp(int nSamples);
+  void next_cubicinterp(int nSamples);
   bool getBuf(int nSamples);
   void readInputs();
   void updateLoop();
@@ -37,11 +39,14 @@ private:
   bool wrapPos(Loop &loop) const;
   double getFadeAtBounds(const Loop &loop) const;
   void loopBody_nointerp(const int &nSamples, const int &outSample,
-                         const Loop &loop, const FadeFunc writeFunc, double mix);
+                         const Loop &loop, const FadeFunc writeFunc,
+                         double mix);
   void loopBody_lininterp(const int &nSamples, const int &outSample,
-                          const Loop &loop, const FadeFunc writeFunc, double mix);
+                          const Loop &loop, const FadeFunc writeFunc,
+                          double mix);
   void loopBody_cubicinterp(const int &nSamples, const int &outSample,
-                            const Loop &loop, const FadeFunc writeFunc, double mix);
+                            const Loop &loop, const FadeFunc writeFunc,
+                            double mix);
 
   void write(const int &channel, const int &OUT_SAMPLE, const float &in,
              const double &mix);
