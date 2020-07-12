@@ -16,8 +16,7 @@ struct Loop {
 
 class XPlayBuf;
 typedef void (XPlayBuf::*FadeFunc)(const int&, const int&, const float&, const double&);
-typedef void (XPlayBuf::*LoopFunc)(const int& nSamples, const int& outSample, const Loop& loop,
-                                   const FadeFunc writeFunc, double mix);
+
 class XPlayBuf : public SCUnit {
 public:
     XPlayBuf();
@@ -48,19 +47,19 @@ private:
     void overwrite_lin(const int& channel, const int& OUT_SAMPLE, const float& in, const double& mix);
 
     // Member variables
-    Loop currLoop;
-    Loop prevLoop;
+    Loop m_currLoop;
+    Loop m_prevLoop;
 
-    double mPlaybackRate;
-    int32 mLoop;
+    double m_playbackRate;
+    int32 m_loop;
+    uint32 m_numOutputs;
     float m_prevtrig;
     float m_fbufnum;
     float m_failedBufNum;
     double m_fadeSamples;
     double m_rFadeSamples;
     double m_remainingFadeSamples;
-    FadeFunc mFadeFunc;
-    LoopFunc mLoopFunc;
+    FadeFunc m_fadeFunc;
     SndBuf* m_buf;
 };
 
