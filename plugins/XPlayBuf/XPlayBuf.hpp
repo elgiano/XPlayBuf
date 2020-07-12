@@ -7,6 +7,8 @@
 
 namespace XPlayBuf {
 
+enum UGenInput { bufnum, playbackRate, trig, startPos, loopDur, looping, fadeTime, fadeEqualPower, interpolation };
+
 struct Loop {
     double phase = -1.;
     double start = -1.;

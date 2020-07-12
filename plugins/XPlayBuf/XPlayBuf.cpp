@@ -15,7 +15,7 @@ XPlayBuf::XPlayBuf() {
     m_prevtrig = 0.;
     m_remainingFadeSamples = 0.;
     m_playbackRate = 1.;
-    int interp = static_cast<int>(in0(8));
+    int interp = static_cast<int>(in0(UGenInput::interpolation));
     switch (interp) {
     case 0:
         set_calc_function<XPlayBuf, &XPlayBuf::next_nointerp>();
@@ -272,7 +272,7 @@ void XPlayBuf::loopBody_cubicinterp(const int& nSamples, const int& outSample, c
 
 inline bool XPlayBuf::getBuf(int nSamples) {
     Unit* unit = (Unit*)this;
-    float fbufnum = in0(0);
+    float fbufnum = in0(UGenInput::bufnum);
     if (fbufnum < 0.f)
         fbufnum = 0.f;
     if (fbufnum != m_fbufnum) {
@@ -315,10 +315,11 @@ inline bool XPlayBuf::getBuf(int nSamples) {
 }
 
 void XPlayBuf::updateLoop() {
-    m_currLoop.start = sc_wrap(static_cast<double>(in0(3)) * m_buf->samplerate, 0., static_cast<double>(m_buf->frames));
+    m_currLoop.start = sc_wrap(static_cast<double>(in0(UGenInput::startPos)) * m_buf->samplerate, 0.,
+                               static_cast<double>(m_buf->frames));
 
     double loopMax = static_cast<double>(m_loop ? m_buf->frames : m_buf->frames - 1);
-    m_currLoop.samples = in0(4) * m_buf->samplerate;
+    m_currLoop.samples = in0(UGenInput::loopDur) * m_buf->samplerate;
     m_currLoop.end = m_currLoop.samples < 0 ? loopMax : sc_wrap(m_currLoop.start + m_currLoop.samples, 0., loopMax);
     m_currLoop.samples = m_currLoop.end - m_currLoop.start;
 
@@ -326,11 +327,11 @@ void XPlayBuf::updateLoop() {
 }
 
 inline void XPlayBuf::readInputs() {
-    m_playbackRate = static_cast<double>(in0(1)) * m_buf->samplerate * sampleDur();
-    m_loop = (int32)in0(5);
-    m_fadeSamples = static_cast<double>(in0(6) * m_buf->samplerate);
+    m_playbackRate = static_cast<double>(in0(UGenInput::playbackRate)) * m_buf->samplerate * sampleDur();
+    m_loop = (int32)in0(UGenInput::looping);
+    m_fadeSamples = static_cast<double>(in0(UGenInput::fadeTime) * m_buf->samplerate);
     m_rFadeSamples = m_fadeSamples > 0 ? sc_reciprocal(m_fadeSamples) : 1;
-    float trig = in0(2);
+    float trig = in0(UGenInput::trig);
 
     if (m_currLoop.start < 0 && m_currLoop.phase < 0)
         updateLoop();
@@ -345,7 +346,7 @@ inline void XPlayBuf::readInputs() {
     }
     m_prevtrig = trig;
 
-    m_fadeFunc = in0(7) > 0 ? &XPlayBuf::overwrite_equalPower : &XPlayBuf::overwrite_lin;
+    m_fadeFunc = in0(UGenInput::fadeEqualPower) > 0 ? &XPlayBuf::overwrite_equalPower : &XPlayBuf::overwrite_lin;
 }
 
 #define NEXT_COMMON(loopFunc)                                                                                          \
@@ -353,9 +354,9 @@ inline void XPlayBuf::readInputs() {
         return;                                                                                                        \
     readInputs();                                                                                                      \
     for (int i = 0; i < nSamples; ++i) {                                                                               \
-        mDone = wrapPos(m_currLoop);                                                                                     \
-        loopFunc(nSamples, i, m_currLoop, &XPlayBuf::write, 1);                                                          \
-        m_currLoop.phase += m_playbackRate;                                                                               \
+        mDone = wrapPos(m_currLoop);                                                                                   \
+        loopFunc(nSamples, i, m_currLoop, &XPlayBuf::write, 1);                                                        \
+        m_currLoop.phase += m_playbackRate;                                                                            \
         if (m_remainingFadeSamples > 0) {                                                                              \
             wrapPos(m_prevLoop);                                                                                         \
             loopFunc(nSamples, i, m_prevLoop, m_fadeFunc, m_remainingFadeSamples* m_rFadeSamples);                        \
