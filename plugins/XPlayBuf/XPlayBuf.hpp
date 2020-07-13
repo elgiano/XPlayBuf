@@ -50,7 +50,7 @@ private:
     Loop m_prevLoop;
 
     double m_playbackRate;
-    int32 m_loop;
+    bool m_loop;
     float m_prevtrig;
     float m_fbufnum;
     float m_failedBufNum;
