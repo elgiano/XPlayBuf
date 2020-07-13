@@ -37,12 +37,9 @@ private:
 
     bool wrapPos(Loop& loop) const;
     double getFadeAtBounds(const Loop& loop) const;
-    void loopBody_nointerp(const int& nSamples, const int& outSample, const Loop& loop, const FadeFunc writeFunc,
-                           double mix);
-    void loopBody_lininterp(const int& nSamples, const int& outSample, const Loop& loop, const FadeFunc writeFunc,
-                            double mix);
-    void loopBody_cubicinterp(const int& nSamples, const int& outSample, const Loop& loop, const FadeFunc writeFunc,
-                              double mix);
+    void loopBody_nointerp(const int& outSample, const Loop& loop, const FadeFunc writeFunc, double mix);
+    void loopBody_lininterp(const int& outSample, const Loop& loop, const FadeFunc writeFunc, double mix);
+    void loopBody_cubicinterp(const int& outSample, const Loop& loop, const FadeFunc writeFunc, double mix);
 
     void write(const int& channel, const int& OUT_SAMPLE, const float& in, const double& mix);
     void overwrite_equalPower(const int& channel, const int& OUT_SAMPLE, const float& in, const double& mix);
@@ -54,7 +51,6 @@ private:
 
     double m_playbackRate;
     int32 m_loop;
-    uint32 m_numOutputs;
     float m_prevtrig;
     float m_fbufnum;
     float m_failedBufNum;

@@ -8,14 +8,18 @@ static InterfaceTable* ft;
 
 namespace XPlayBuf {
 
-XPlayBuf::XPlayBuf() {
-    m_numOutputs = numOutputs();
-    m_fbufnum = -1e9f;
-    m_failedBufNum = -1e9f;
-    m_prevtrig = 0.;
-    m_remainingFadeSamples = 0.;
-    m_playbackRate = 1.;
-    int interp = static_cast<int>(in0(UGenInput::interpolation));
+XPlayBuf::XPlayBuf():
+    m_loop(0),
+    mFadeFunc(nullptr),
+    m_buf(nullptr),
+    m_fbufnum(-1e9f),
+    m_failedBufNum(-1e9f),
+    m_prevtrig(0),
+    m_fadeSamples(1),
+    m_rFadeSamples(1),
+    m_remainingFadeSamples(0),
+    m_playbackRate(1) {
+    uint32 interp = static_cast<uint32>(in0(UGenInput::interpolation));
     switch (interp) {
     case 0:
         set_calc_function<XPlayBuf, &XPlayBuf::next_nointerp>();
@@ -98,9 +102,9 @@ inline bool XPlayBuf::wrapPos(Loop& loop) const {
 }
 
 double XPlayBuf::getFadeAtBounds(const Loop& loop) const {
-    double distance, mix = 1.;
+    double mix = 1.;
     // loop start
-    distance = loop.phase - loop.start;
+    double distance = loop.phase - loop.start;
     if (distance >= 0 && distance < m_fadeSamples) {
         mix *= distance * m_rFadeSamples;
     };
@@ -110,8 +114,7 @@ double XPlayBuf::getFadeAtBounds(const Loop& loop) const {
         mix *= 1 - distance * m_rFadeSamples;
     };
     // buf start
-    distance = loop.phase;
-    if (distance >= 0 && distance < m_fadeSamples) {
+    if (loop.phase >= 0 && loop.phase < m_fadeSamples) {
         mix *= distance * m_rFadeSamples;
     };
     // buf end
@@ -123,11 +126,8 @@ double XPlayBuf::getFadeAtBounds(const Loop& loop) const {
 }
 
 #define LOOP_CUBIC(WRITE_FUNC, MIX)                                                                                    \
-    float a = table0[index];                                                                                           \
-    float b = table1[index];                                                                                           \
-    float c = table2[index];                                                                                           \
-    float d = table3[index];                                                                                           \
-    (this->*WRITE_FUNC)(channel, outSample, cubicinterp(fracphase, a, b, c, d), MIX);
+    (this->*WRITE_FUNC)(channel, outSample,                                                                            \
+                        cubicinterp(fracphase, table0[index], table1[index], table2[index], table3[index]), MIX);
 
 #define LOOP_LINEAR(WRITE_FUNC, MIX)                                                                                   \
     float b = table1[index];                                                                                           \
@@ -137,42 +137,39 @@ double XPlayBuf::getFadeAtBounds(const Loop& loop) const {
 #define LOOP_NOINTERP(WRITE_FUNC, MIX) (this->*WRITE_FUNC)(channel, outSample, table1[index], MIX);
 
 #define LOOP_INIT                                                                                                      \
-    int bufChannels = m_buf->channels;                                                                                 \
+    uint32 bufChannels = m_buf->channels;                                                                              \
     int guardFrame = m_buf->frames - 2;                                                                                \
-    mix *= getFadeAtBounds(loop);                                                                                      \
     int32 iphase = (int32)loop.phase;
 
-void XPlayBuf::loopBody_nointerp(const int& nSamples, const int& outSample, const Loop& loop, const FadeFunc writeFunc,
-                                 double mix) {
+void XPlayBuf::loopBody_nointerp(const int& outSample, const Loop& loop, const FadeFunc writeFunc, double mix) {
     LOOP_INIT
     const float* table1 = m_buf->data + iphase * bufChannels;
-    int32 index = 0;
+    uint32 index = 0;
 
-    if (m_numOutputs == bufChannels) {
-        for (uint32 channel = 0; channel < m_numOutputs; ++channel) {
+    if (mNumOutputs == bufChannels) {
+        for (uint32 channel = 0; channel < mNumOutputs; ++channel) {
             LOOP_NOINTERP(writeFunc, mix)
             index++;
         }
-    } else if (m_numOutputs < bufChannels) {
-        for (uint32 channel = 0; channel < m_numOutputs; ++channel) {
+    } else if (mNumOutputs < bufChannels) {
+        for (uint32 channel = 0; channel < mNumOutputs; ++channel) {
             LOOP_NOINTERP(writeFunc, mix)
             index++;
         }
-        index += (bufChannels - m_numOutputs);
+        index += (bufChannels - mNumOutputs);
     } else {
         for (uint32 channel = 0; channel < bufChannels; ++channel) {
             LOOP_NOINTERP(writeFunc, mix)
             index++;
         }
-        for (uint32 channel = bufChannels; channel < m_numOutputs; ++channel) {
+        for (uint32 channel = bufChannels; channel < mNumOutputs; ++channel) {
             out(channel)[outSample] = 0.f;
             index++;
         }
     }
 }
 
-void XPlayBuf::loopBody_lininterp(const int& nSamples, const int& outSample, const Loop& loop, const FadeFunc writeFunc,
-                                  double mix) {
+void XPlayBuf::loopBody_lininterp(const int& outSample, const Loop& loop, const FadeFunc writeFunc, double mix) {
     LOOP_INIT
     const float* table1 = m_buf->data + iphase * bufChannels;
     const float* table2 = table1 + bufChannels;
@@ -186,35 +183,31 @@ void XPlayBuf::loopBody_lininterp(const int& nSamples, const int& outSample, con
     int32 index = 0;
     float fracphase = loop.phase - (double)iphase;
 
-    if (m_numOutputs == bufChannels) {
-        for (uint32 channel = 0; channel < m_numOutputs; ++channel) {
+    if (mNumOutputs == bufChannels) {
+        for (uint32 channel = 0; channel < mNumOutputs; ++channel) {
             LOOP_LINEAR(writeFunc, mix)
             index++;
         }
-    } else if (m_numOutputs < bufChannels) {
-        for (uint32 channel = 0; channel < m_numOutputs; ++channel) {
+    } else if (mNumOutputs < bufChannels) {
+        for (uint32 channel = 0; channel < mNumOutputs; ++channel) {
             LOOP_LINEAR(writeFunc, mix)
             index++;
         }
-        index += (bufChannels - m_numOutputs);
+        index += (bufChannels - mNumOutputs);
     } else {
         for (uint32 channel = 0; channel < bufChannels; ++channel) {
             LOOP_LINEAR(writeFunc, mix)
             index++;
         }
-        for (uint32 channel = bufChannels; channel < m_numOutputs; ++channel) {
+        for (uint32 channel = bufChannels; channel < mNumOutputs; ++channel) {
             out(channel)[outSample] = 0.f;
             index++;
         }
     }
 }
 
-void XPlayBuf::loopBody_cubicinterp(const int& nSamples, const int& outSample, const Loop& loop,
-                                    const FadeFunc writeFunc, double mix) {
-    int bufChannels = m_buf->channels;
-    int guardFrame = m_buf->frames - 2;
-    mix *= getFadeAtBounds(loop);
-    int32 iphase = (int32)loop.phase;
+void XPlayBuf::loopBody_cubicinterp(const int& outSample, const Loop& loop, const FadeFunc writeFunc, double mix) {
+    LOOP_INIT
     const float* table1 = m_buf->data + iphase * bufChannels;
     const float* table0 = table1 - bufChannels;
     const float* table2 = table1 + bufChannels;
@@ -245,23 +238,23 @@ void XPlayBuf::loopBody_cubicinterp(const int& nSamples, const int& outSample, c
     int32 index = 0;
     float fracphase = loop.phase - (double)iphase;
 
-    if (m_numOutputs == bufChannels) {
-        for (uint32 channel = 0; channel < m_numOutputs; ++channel) {
+    if (mNumOutputs == bufChannels) {
+        for (uint32 channel = 0; channel < mNumOutputs; ++channel) {
             LOOP_CUBIC(writeFunc, mix)
             index++;
         }
-    } else if (m_numOutputs < bufChannels) {
-        for (uint32 channel = 0; channel < m_numOutputs; ++channel) {
+    } else if (mNumOutputs < bufChannels) {
+        for (uint32 channel = 0; channel < mNumOutputs; ++channel) {
             LOOP_CUBIC(writeFunc, mix)
             index++;
         }
-        index += (bufChannels - m_numOutputs);
+        index += (bufChannels - mNumOutputs);
     } else {
         for (uint32 channel = 0; channel < bufChannels; ++channel) {
             LOOP_CUBIC(writeFunc, mix)
             index++;
         }
-        for (uint32 channel = bufChannels; channel < m_numOutputs; ++channel) {
+        for (uint32 channel = bufChannels; channel < mNumOutputs; ++channel) {
             out(channel)[outSample] = 0.f;
             index++;
         }
@@ -302,11 +295,11 @@ inline bool XPlayBuf::getBuf(int nSamples) {
         RELEASE_SNDBUF_SHARED(m_buf);
         return false;
     } else {
-        if (m_buf->channels != m_numOutputs) {
+        if (m_buf->channels != mNumOutputs) {
             if (mWorld->mVerbosity > -1 && !mDone && (m_failedBufNum != fbufnum)) {
                 Print("Buffer UGen channel mismatch: expected %i, yet buffer has %i "
                       "channels\n",
-                      m_numOutputs, m_buf->channels);
+                      mNumOutputs, m_buf->channels);
                 m_failedBufNum = fbufnum;
             }
         }
@@ -326,7 +319,7 @@ void XPlayBuf::updateLoop() {
     m_currLoop.phase = m_currLoop.start;
 }
 
-inline void XPlayBuf::readInputs() {
+void XPlayBuf::readInputs() {
     m_playbackRate = static_cast<double>(in0(UGenInput::playbackRate)) * m_buf->samplerate * sampleDur();
     m_loop = (int32)in0(UGenInput::looping);
     m_fadeSamples = static_cast<double>(in0(UGenInput::fadeTime) * m_buf->samplerate);
@@ -340,9 +333,6 @@ inline void XPlayBuf::readInputs() {
         m_prevLoop = m_currLoop;
         updateLoop();
         m_remainingFadeSamples = m_fadeSamples;
-        // Print("PREV %f: %f->%f (%f)\n", m_prevLoop.phase, m_prevLoop.start,
-        // m_prevLoop.end, m_prevLoop.samples); Print("CURR %f: %f->%f (%f)\n",
-        // m_currLoop.phase, m_currLoop.start, m_currLoop.end, m_currLoop.samples);
     }
     m_prevtrig = trig;
 
@@ -355,13 +345,13 @@ inline void XPlayBuf::readInputs() {
     readInputs();                                                                                                      \
     for (int i = 0; i < nSamples; ++i) {                                                                               \
         mDone = wrapPos(m_currLoop);                                                                                   \
-        loopFunc(nSamples, i, m_currLoop, &XPlayBuf::write, 1);                                                        \
+        loopFunc(i, m_currLoop, &XPlayBuf::write, getFadeAtBounds(m_currLoop));                                        \
         m_currLoop.phase += m_playbackRate;                                                                            \
         if (m_remainingFadeSamples > 0) {                                                                              \
-            wrapPos(m_prevLoop);                                                                                         \
-            loopFunc(nSamples, i, m_prevLoop, m_fadeFunc, m_remainingFadeSamples* m_rFadeSamples);                        \
-            m_remainingFadeSamples -= sc_abs(m_playbackRate);                                                           \
-            m_prevLoop.phase += m_playbackRate;                                                                           \
+            wrapPos(m_prevLoop);                                                                                       \
+            loopFunc(i, m_prevLoop, m_fadeFunc, getFadeAtBounds(m_prevLoop) * m_remainingFadeSamples * m_rFadeSamples); \
+            m_remainingFadeSamples -= sc_abs(m_playbackRate);                                                          \
+            m_prevLoop.phase += m_playbackRate;                                                                        \
         }                                                                                                              \
     }                                                                                                                  \
     RELEASE_SNDBUF_SHARED(m_buf);
