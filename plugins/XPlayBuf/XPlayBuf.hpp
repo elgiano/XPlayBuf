@@ -7,7 +7,7 @@
 
 namespace XPlayBuf {
 
-enum UGenInput { bufnum, playbackRate, trig, startPos, loopDur, looping, fadeTime, fadeEqualPower, interpolation };
+enum UGenInput { bufnum, playbackRate, trig, startPos, loopDur, looping, fadeTime, fadeEqualPower };
 
 struct Loop {
     double phase = -1.;
@@ -28,18 +28,14 @@ public:
 
 private:
     // Calc function
-    void next_nointerp(int nSamples);
-    void next_lininterp(int nSamples);
-    void next_cubicinterp(int nSamples);
+    void next(int nSamples);
     bool getBuf(int nSamples);
     void readInputs();
     void updateLoop();
 
     bool wrapPos(Loop& loop) const;
     double getFadeAtBounds(const Loop& loop) const;
-    void loopBody_nointerp(const int& outSample, const Loop& loop, const FadeFunc writeFunc, double mix);
-    void loopBody_lininterp(const int& outSample, const Loop& loop, const FadeFunc writeFunc, double mix);
-    void loopBody_cubicinterp(const int& outSample, const Loop& loop, const FadeFunc writeFunc, double mix);
+    void loopBody(const int& outSample, const Loop& loop, const FadeFunc writeFunc, double mix);
 
     void write(const int& channel, const int& OUT_SAMPLE, const float& in, const double& mix);
     void overwrite_equalPower(const int& channel, const int& OUT_SAMPLE, const float& in, const double& mix);
@@ -59,6 +55,7 @@ private:
     double m_remainingFadeSamples;
     FadeFunc m_fadeFunc;
     SndBuf* m_buf;
+    uint32 m_numWriteChannels;
 };
 
 } // namespace XPlayBuf
