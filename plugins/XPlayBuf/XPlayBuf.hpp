@@ -56,6 +56,7 @@ private:
     FadeFunc m_fadeFunc;
     SndBuf* m_buf;
     uint32 m_numWriteChannels;
+    int32 m_guardFrame;
 };
 
 } // namespace XPlayBuf

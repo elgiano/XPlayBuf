@@ -19,7 +19,8 @@ XPlayBuf::XPlayBuf():
     m_rFadeSamples(1),
     m_remainingFadeSamples(0),
     m_playbackRate(1),
-    m_numWriteChannels(0) {
+    m_numWriteChannels(0),
+    m_guardFrame(0) {
     set_calc_function<XPlayBuf, &XPlayBuf::next>();
 }
 
@@ -37,8 +38,7 @@ inline bool XPlayBuf::getBuf(int nSamples) {
             if (localBufNum <= mParent->localBufNum) {
                 m_buf = mParent->mLocalSndBufs + localBufNum;
             } else {
-                bufnum = 0;
-                m_buf = mWorld->mSndBufs + bufnum;
+                m_buf = mWorld->mSndBufs;
             }
         } else {
             m_buf = mWorld->mSndBufs + bufnum;
@@ -68,8 +68,8 @@ inline bool XPlayBuf::getBuf(int nSamples) {
                 m_numWriteChannels = mNumOutputs;
             }
         }
+        return true;
     }
-    return true;
 }
 
 void XPlayBuf::updateLoop() {
@@ -119,6 +119,7 @@ void XPlayBuf::next(int nSamples) {
             wrapPos(m_prevLoop);
             loopBody(i, m_prevLoop, m_fadeFunc, getFadeAtBounds(m_prevLoop) * m_remainingFadeSamples * m_rFadeSamples);
             m_remainingFadeSamples -= sc_abs(m_playbackRate);
+            m_guardFrame = static_cast<int32>(m_buf->frames - 2);
             m_prevLoop.phase += m_playbackRate;
         }
     }
@@ -149,45 +150,41 @@ void XPlayBuf::overwrite_lin(const int& channel, const int& OUT_SAMPLE, const fl
 // main loop utils
 
 inline bool XPlayBuf::wrapPos(Loop& loop) const {
-    // avoid the divide if possible
+
+    // wrap buf extremes
     loop.phase = sc_wrap(loop.phase, 0., static_cast<double>(m_buf->frames));
 
     if (loop.samples < 0) {
-        if (!(loop.phase > loop.end && loop.phase < loop.start) || m_playbackRate == 0)
+        // in bounds: noop
+        if (!(loop.phase > loop.end && loop.phase < loop.start) || m_playbackRate == 0) {
             return false;
-        if (!m_loop) {
+        } else if (!m_loop) {
             loop.phase = loop.end;
             return true;
-        }
-        if (loop.phase == loop.start || loop.phase == loop.end)
+        } else if (loop.phase == loop.start || loop.phase == loop.end) {
             return false;
-        if (m_playbackRate > 0) {
-            loop.phase -= loop.samples;
         } else {
-            loop.phase += loop.samples;
+            loop.phase += (m_playbackRate > 0 ? -1 : 1 ) * loop.samples;
         }
+
         if (!(loop.phase > loop.end && loop.phase < loop.start))
             return false;
+    }else{
+        if ((loop.phase >= loop.start && loop.phase < loop.end) || m_playbackRate == 0) {
+            return false;
+        } else if (!m_loop) {
+            loop.phase = (m_playbackRate > 0 ? loop.end : loop.start );
+            return true;
+        } else if (loop.phase >= loop.end) {
+            loop.phase -= loop.samples;
+            if (loop.phase < loop.end)
+                return false;
+        } else if (loop.phase < loop.start) {
+            loop.phase += loop.samples;
+            if (loop.phase >= loop.start)
+                return false;
+        }
     }
-
-    if (loop.phase >= loop.end) {
-        if (!m_loop) {
-            loop.phase = loop.end;
-            return true;
-        }
-        loop.phase -= loop.samples;
-        if (loop.phase < loop.end)
-            return false;
-    } else if (loop.phase < loop.start) {
-        if (!m_loop) {
-            loop.phase = loop.start;
-            return true;
-        }
-        loop.phase += loop.samples;
-        if (loop.phase >= loop.start)
-            return false;
-    } else
-        return false;
 
     loop.phase -= loop.samples * floor((loop.phase - loop.start) / loop.samples);
     return false;
@@ -227,42 +224,25 @@ void XPlayBuf::loopBody(const int& outSample, const Loop& loop, const FadeFunc w
     const float* table0 = table1 - bufChannels;
     const float* table2 = table1 + bufChannels;
     const float* table3 = table2 + bufChannels;
-    int guardFrame = m_buf->frames - 2;
     if (iphase == 0) {
-        if (m_loop) {
-            table0 += m_buf->samples;
+        table0 += m_buf->samples;
+    } else if (iphase >= m_guardFrame) {
+        if (iphase == m_guardFrame) {
+            table3 -= m_buf->samples;
         } else {
-            table0 += bufChannels;
-        }
-    } else if (iphase >= guardFrame) {
-        if (iphase == guardFrame) {
-            if (m_loop) {
-                table3 -= m_buf->samples;
-            } else {
-                table3 -= bufChannels;
-            }
-        } else {
-            if (m_loop) {
-                table2 -= m_buf->samples;
-                table3 -= m_buf->samples;
-            } else {
-                table2 -= bufChannels;
-                table3 -= 2 * bufChannels;
-            }
+            table2 -= m_buf->samples;
+            table3 -= m_buf->samples;
         }
     }
-    int32 index = 0;
     double fracphase = loop.phase - iphase;
 
     for (uint32 channel = 0; channel < m_numWriteChannels; ++channel) {
         (this->*writeFunc)(channel, outSample,
-                           cubicinterp(fracphase, table0[index], table1[index], table2[index], table3[index]), mix);
-        index++;
+                           cubicinterp(fracphase, table0[channel], table1[channel], table2[channel], table3[channel]), mix);
     }
     if (mNumOutputs > m_numWriteChannels) {
         for (uint32 channel = bufChannels; channel < mNumOutputs; ++channel) {
             out(channel)[outSample] = 0.f;
-            index++;
         }
     }
 }
