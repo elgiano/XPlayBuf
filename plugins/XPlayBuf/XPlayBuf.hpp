@@ -14,10 +14,11 @@ struct Loop {
     double start = -1.;
     double end = -1.;
     double samples = 0.;
+    double fade = 1;
 };
 
 class XPlayBuf;
-typedef void (XPlayBuf::*FadeFunc)(const int&, const int&, const float&, const double&);
+typedef float (XPlayBuf::*FadeFunc)(const float&, const float&, const double&) const;
 
 class XPlayBuf : public SCUnit {
 public:
@@ -30,20 +31,20 @@ private:
     // Calc function
     void next(int nSamples);
     bool getBuf(int nSamples);
-    void readInputs();
-    void updateLoop();
+    bool readInputs();
+    bool updateLoop();
 
     bool wrapPos(Loop& loop) const;
-    double getFadeAtBounds(const Loop& loop) const;
-    void loopBody(const int& outSample, const Loop& loop, const FadeFunc writeFunc, double mix);
+    bool isPosInLoopBounds(const double& pos, const Loop& loop) const;
+    void updateLoopBoundsFade(Loop& loop) const;
 
-    void write(const int& channel, const int& OUT_SAMPLE, const float& in, const double& mix);
-    void overwrite_equalPower(const int& channel, const int& OUT_SAMPLE, const float& in, const double& mix);
-    void overwrite_lin(const int& channel, const int& OUT_SAMPLE, const float& in, const double& mix);
+    float xfade_equalPower(const float& a, const float& b, const double& fade) const;
+    float xfade_lin(const float& a, const float& b, const double& fade)  const;
 
     // Member variables
     Loop m_currLoop;
     Loop m_prevLoop;
+    Loop m_argLoop;
 
     double m_playbackRate;
     bool m_loop;
@@ -57,6 +58,7 @@ private:
     SndBuf* m_buf;
     uint32 m_numWriteChannels;
     int32 m_guardFrame;
+    double m_bufFrames;
 };
 
 } // namespace XPlayBuf
