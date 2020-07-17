@@ -30,6 +30,8 @@ public:
 private:
     // Calc function
     void next(int nSamples);
+    void writeFrame(const int& outSample);
+    void xfadeFrame(const int& outSample);
     bool getBuf(int nSamples);
     bool readInputs();
     bool updateLoop();
@@ -39,7 +41,7 @@ private:
     void updateLoopBoundsFade(Loop& loop) const;
 
     float xfade_equalPower(const float& a, const float& b, const double& fade) const;
-    float xfade_lin(const float& a, const float& b, const double& fade)  const;
+    float xfade_lin(const float& a, const float& b, const double& fade) const;
 
     // Member variables
     Loop m_currLoop;
