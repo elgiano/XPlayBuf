@@ -34,10 +34,9 @@ private:
     void xfadeFrame(const int& outSample);
     bool getBuf(int nSamples);
     bool readInputs();
-    bool updateLoop();
 
-    bool wrapPos(Loop& loop) const;
-    bool isPosInLoopBounds(const double& pos, const Loop& loop) const;
+    void wrapPos(Loop& loop) const;
+    bool isLoopPosOutOfBounds(const Loop& loop) const;
     void updateLoopBoundsFade(Loop& loop) const;
 
     float xfade_equalPower(const float& a, const float& b, const double& fade) const;
