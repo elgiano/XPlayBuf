@@ -33,26 +33,26 @@ private:
 
     int32 updateLoopPos(Loop& loop) const;
     int32 wrapPos(int32 iphase, const Loop& loop) const;
-    float getLoopBoundsFade(int32 iphase, const Loop& loop) const;
+    float getLoopBoundsFade(const int32 iphase, const Loop& loop) const;
     bool isLoopPosOutOfBounds(const Loop& loop) const;
+    bool isLoopPosOutOfBounds(const Loop& loop, const int32 iphase) const;
 
     float xfade_equalPower(float a, float b, double fade) const;
 
     // Member variables
-    Loop m_currLoop; // check variables order for alignment
+    Loop m_currLoop;
     Loop m_prevLoop;
 
     int32 m_guardFrame;
     uint32 m_numWriteChannels;
-    double m_bufFrames;
-    double m_playbackRate;
-    double m_OneOverFadeSamples;
     float m_fadeSamples;
+    float m_OneOverFadeSamples;
     float m_remainingFadeSamples;
-    SndBuf* m_buf;
-    float m_prevtrig;
     float m_fbufnum;
+    SndBuf* m_buf;
+    double m_playbackRate;
     float m_failedBufNum;
+    float m_prevtrig;
 
     Loop m_argLoop;
     bool m_loop;
