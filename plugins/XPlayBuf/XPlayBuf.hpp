@@ -45,21 +45,22 @@ private:
     // Member variables
     Loop m_currLoop;
     Loop m_prevLoop;
-    Loop m_argLoop;
 
+    int32 m_guardFrame;
+    double m_bufFrames;
+    uint32 m_numWriteChannels;
     double m_playbackRate;
-    bool m_loop;
-    float m_prevtrig;
-    float m_fbufnum;
-    float m_failedBufNum;
     double m_fadeSamples;
     double m_rFadeSamples;
     double m_remainingFadeSamples;
+    bool m_loop;
     FadeFunc m_fadeFunc;
     SndBuf* m_buf;
-    uint32 m_numWriteChannels;
-    int32 m_guardFrame;
-    double m_bufFrames;
+    float m_prevtrig;
+    float m_fbufnum;
+    float m_failedBufNum;
+
+    Loop m_argLoop;
 };
 
 } // namespace XPlayBuf
