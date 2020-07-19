@@ -7,18 +7,14 @@
 
 namespace XPlayBuf {
 
-enum UGenInput { bufnum, playbackRate, trig, startPos, loopDur, looping, fadeTime, fadeEqualPower };
+enum UGenInput { bufnum, playbackRate, trig, startPos, loopDur, looping, fadeTime };
 
 struct Loop {
     double phase = -1.;
-    double start = -1.;
-    double end = -1.;
-    double samples = 0.;
-    double fade = 1;
+    int32 start = -1;
+    int32 end = -1;
+    float fade = 1.;
 };
-
-class XPlayBuf;
-typedef float (XPlayBuf::*FadeFunc)(const float&, const float&, const double&) const;
 
 class XPlayBuf : public SCUnit {
 public:
@@ -30,37 +26,36 @@ public:
 private:
     // Calc function
     void next(int nSamples);
-    void writeFrame(const int& outSample);
-    void xfadeFrame(const int& outSample);
     bool getBuf(int nSamples);
     bool readInputs();
+    void writeFrame(int outSample);
+    void xfadeFrame(int outSample);
 
-    void wrapPos(Loop& loop) const;
+    int32 updateLoopPos(Loop& loop) const;
+    int32 wrapPos(int32 iphase, const Loop& loop) const;
+    float getLoopBoundsFade(int32 iphase, const Loop& loop) const;
     bool isLoopPosOutOfBounds(const Loop& loop) const;
-    void updateLoopBoundsFade(Loop& loop) const;
 
-    float xfade_equalPower(const float& a, const float& b, const double& fade) const;
-    float xfade_lin(const float& a, const float& b, const double& fade) const;
+    float xfade_equalPower(float a, float b, double fade) const;
 
     // Member variables
-    Loop m_currLoop;
+    Loop m_currLoop; // check variables order for alignment
     Loop m_prevLoop;
 
     int32 m_guardFrame;
-    double m_bufFrames;
     uint32 m_numWriteChannels;
+    double m_bufFrames;
     double m_playbackRate;
-    double m_fadeSamples;
-    double m_rFadeSamples;
-    double m_remainingFadeSamples;
-    bool m_loop;
-    FadeFunc m_fadeFunc;
+    double m_OneOverFadeSamples;
+    float m_fadeSamples;
+    float m_remainingFadeSamples;
     SndBuf* m_buf;
     float m_prevtrig;
     float m_fbufnum;
     float m_failedBufNum;
 
     Loop m_argLoop;
+    bool m_loop;
 };
 
 } // namespace XPlayBuf
