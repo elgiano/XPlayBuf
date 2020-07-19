@@ -72,7 +72,7 @@ bool XPlayBuf::readInputs() {
     m_argLoop.start = sc_wrap(static_cast<double>(in0(UGenInput::startPos)) * m_buf->samplerate, 0., m_bufFrames);
     double argLoopSamples = static_cast<double>(in0(UGenInput::loopDur)) * m_buf->samplerate;
     m_argLoop.end = argLoopSamples < 0 ? m_bufFrames : sc_wrap(m_argLoop.start + argLoopSamples, 0., m_bufFrames);
-    m_argLoop.samples = m_argLoop.end - m_argLoop.start;
+    m_argLoop.samples = sc_abs(m_argLoop.end - m_argLoop.start);
     bool loopChanged = (m_argLoop.start != m_currLoop.start) || (m_argLoop.end != m_currLoop.end);
 
     float trig = in0(UGenInput::trig);
@@ -99,7 +99,7 @@ bool XPlayBuf::readInputs() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // main loop
 
-void XPlayBuf::writeFrame(const int32& outSample) {
+inline void XPlayBuf::writeFrame(const int32& outSample) {
     wrapPos(m_currLoop);
     updateLoopBoundsFade(m_currLoop);
     int32 iphase = static_cast<int32>(m_currLoop.phase);
@@ -121,7 +121,7 @@ void XPlayBuf::writeFrame(const int32& outSample) {
     }
 }
 
-void XPlayBuf::xfadeFrame(const int32& outSample) {
+inline void XPlayBuf::xfadeFrame(const int32& outSample) {
     wrapPos(m_currLoop);
     updateLoopBoundsFade(m_currLoop);
     int32 iphase = static_cast<int32>(m_currLoop.phase);
@@ -167,19 +167,39 @@ void XPlayBuf::xfadeFrame(const int32& outSample) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // loop utils
 
-bool XPlayBuf::isLoopPosOutOfBounds(const Loop& loop) const {
-    if (loop.samples > 0) {
+inline bool XPlayBuf::isLoopPosOutOfBounds(const Loop& loop) const {
+    if (loop.end > loop.start) {
         return loop.phase < loop.start || loop.phase > loop.end;
     }
-    return (loop.phase < loop.end && loop.phase > loop.start) || (loop.phase < 0 || loop.phase > m_bufFrames);
+    return (loop.phase < loop.start && loop.phase > loop.end) || (loop.phase < 0 || loop.phase > m_bufFrames);
 }
 
 void XPlayBuf::wrapPos(Loop& loop) const {
+    // if(loop.phase < 0) { Print("< 0\n"); }
     if (isLoopPosOutOfBounds(loop)) {
-        if (loop.samples > 0) {
-            loop.phase = sc_wrap(loop.phase, loop.start, loop.end);
+
+        if (loop.end > loop.start) {
+            loop.phase = loop.start + sc_mod(loop.phase - loop.start, loop.samples);
         } else {
-            loop.phase = sc_wrap(sc_wrap(loop.phase, loop.start, m_bufFrames + loop.end), 0., m_bufFrames);
+            //Print("bef wrap %f\n",loop.phase);
+            loop.phase = sc_wrap(loop.phase, 0., m_bufFrames);
+            if(loop.phase > loop.end && loop.phase < loop.start) {
+                //Print("wrap %f\n",loop.phase);
+                if(m_playbackRate > 0){
+                    loop.phase = loop.start + sc_mod(loop.phase - loop.end, loop.samples);
+                    if(loop.phase > m_bufFrames){
+                        loop.phase -= m_bufFrames;
+                    }
+                }else{
+                    //Print("bef %f\n",loop.phase);
+                    loop.phase = loop.end - sc_mod(loop.start - loop.phase, loop.samples);
+                    //Print("aft %f\n",loop.phase);
+                    if(loop.phase < 0){
+                        loop.phase += m_bufFrames;
+                    }
+                };
+
+            }
         }
     }
 }
@@ -221,7 +241,7 @@ float XPlayBuf::xfade_lin(const float& a, const float& b, const double& fade) co
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // buf util
 
-bool XPlayBuf::getBuf(int nSamples) {
+inline bool XPlayBuf::getBuf(int nSamples) {
     float fbufnum = in0(UGenInput::bufnum);
     if (fbufnum < 0.f)
         fbufnum = 0.f;
