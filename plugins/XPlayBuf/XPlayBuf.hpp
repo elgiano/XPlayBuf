@@ -11,6 +11,7 @@ enum UGenInput { bufnum, playbackRate, trig, startPos, loopDur, looping, fadeTim
 
 struct Loop {
     double phase = -1.;
+    bool isEndGTStart = false;
     int32 start = -1;
     int32 end = -1;
     float fade = 1.;
@@ -27,6 +28,7 @@ private:
     // Calc function
     void next(int nSamples);
     bool getBuf(int nSamples);
+    void loadLoopArgs();
     bool readInputs();
     void writeFrame(int outSample);
     void xfadeFrame(int outSample);
@@ -48,13 +50,14 @@ private:
     float m_fadeSamples;
     float m_OneOverFadeSamples;
     float m_remainingFadeSamples;
+    float m_argLoopStart;
+    float m_argLoopDur;
     float m_fbufnum;
     SndBuf* m_buf;
     double m_playbackRate;
     float m_failedBufNum;
     float m_prevtrig;
 
-    Loop m_argLoop;
     bool m_loop;
 };
 
