@@ -33,7 +33,7 @@ private:
     void writeFrame(int outSample);
     void xfadeFrame(int outSample);
 
-    int32 updateLoopPos(Loop& loop) const;
+    int32 updateLoopPosAndFade(Loop& loop) const;
     int32 wrapPos(int32 iphase, const Loop& loop) const;
     float getLoopBoundsFade(const int32 iphase, const Loop& loop) const;
     bool isLoopPosOutOfBounds(const Loop& loop) const;
@@ -58,7 +58,7 @@ private:
     float m_failedBufNum;
     float m_prevtrig;
 
-    bool m_loop;
+    bool m_isLooping;
 };
 
 } // namespace XPlayBuf
