@@ -100,11 +100,11 @@ bool XPlayBuf::readInputs() {
     m_playbackRate = static_cast<double>(in0(UGenInput::playbackRate)) * m_buf->samplerate * sampleDur();
     m_isLooping = static_cast<bool>(in0(UGenInput::looping));
 
-    float argFadeSamples = in0(UGenInput::fadeTime) * m_buf->samplerate;
+    int argFadeSamples = static_cast<int32>(sc_floor(in0(UGenInput::fadeTime) * m_buf->samplerate + .5));
     if (argFadeSamples != m_fadeSamples) {
         // calc reciprocal only on change
         m_fadeSamples = argFadeSamples;
-        m_OneOverFadeSamples = m_fadeSamples > 0 ? sc_reciprocal(m_fadeSamples) : 1.;
+        m_OneOverFadeSamples = m_fadeSamples > 0 ? sc_reciprocal(static_cast<float>(m_fadeSamples)) : 1.;
     }
 
     float argLoopStart = in0(UGenInput::startPos);
@@ -211,7 +211,7 @@ int32 XPlayBuf::updateLoopPosAndFade(Loop& loop) const {
     int32 iphase = static_cast<int32>(loop.phase);
     int32 new_iphase = wrapPos(iphase, loop);
     loop.fade = getLoopBoundsFade(new_iphase, loop);
-    loop.phase += new_iphase - iphase;
+    loop.phase += static_cast<double>(new_iphase - iphase);
     // return integer phase for use in ::writeFrame
     return new_iphase;
 }
@@ -242,24 +242,24 @@ int32 XPlayBuf::wrapPos(int32 iphase, const Loop& loop) const {
             // needs to choose one of four wrap strategies, depending on pos and forward vs. reverse
             if (iphase > m_buf->frames) {
                 // oob after buf end: assume forward
-                /*if (iphase - m_buf->frames < loop.end) {
+                if (iphase - m_buf->frames < loop.end) {
                     // simples, most common case for small playbackRates
                     iphase -= m_buf->frames;
-                } else {*/
+                } else {
                     iphase = sc_wrap(iphase, loop.start, loop.end + m_buf->frames);
                     if (iphase > m_buf->frames)
                         iphase -= m_buf->frames;
-                //}
+                }
             } else if (iphase < 0) {
                 // oob before buf start: assume backwards
-                /*if (iphase > m_buf->frames - loop.end) {
+                if (iphase > m_buf->frames - loop.end) {
                     // simples, most common case for small playbackRates
                     iphase += m_buf->frames;
-                } else {*/
+                } else {
                     iphase = sc_wrap(iphase, m_buf->frames - loop.start, loop.end);
                     if (iphase < m_buf->frames)
                         iphase += m_buf->frames;
-                //}
+                }
             } else if (m_playbackRate > 0) {
                 // end < iphase < start: playing forward
                 iphase = loop.start + sc_mod(iphase - loop.end, loop.end + m_buf->frames - loop.start);
