@@ -12,7 +12,7 @@ XPlayBuf::XPlayBuf():
     m_guardFrame(0),
     m_numWriteChannels(0),
     m_fadeSamples(1),
-    m_OneOverFadeSamples(1),
+    m_oneOverFadeSamples(1),
     m_remainingFadeSamples(0),
     m_argLoopStart(-2),
     m_argLoopDur(-2),
@@ -63,7 +63,7 @@ void XPlayBuf::next(int nSamples) {
             out(ch)[outSample] = 0.f;
         }
         // update currLoop bounds: if loop args changed w/o trig, update currLoop when fade is small
-        if (loopNeedsUpdate && m_currLoop.fade <= m_OneOverFadeSamples) {
+        if (loopNeedsUpdate && m_currLoop.fade <= m_oneOverFadeSamples) {
             // update loop bounds, but keep current phase
             double phase = m_currLoop.phase;
             loadLoopArgs();
@@ -104,7 +104,7 @@ bool XPlayBuf::readInputs() {
     if (argFadeSamples != m_fadeSamples) {
         // calc reciprocal only on change
         m_fadeSamples = argFadeSamples;
-        m_OneOverFadeSamples = m_fadeSamples > 0 ? sc_reciprocal(static_cast<float>(m_fadeSamples)) : 1.;
+        m_oneOverFadeSamples = m_fadeSamples > 0 ? sc_reciprocal(static_cast<float>(m_fadeSamples)) : 1.;
     }
 
     float argLoopStart = in0(UGenInput::startPos);
@@ -194,7 +194,7 @@ void XPlayBuf::xfadeFrame(int32 outSample) {
     }
 
     // sum data from currLoop and prevLoop
-    float xfade = m_remainingFadeSamples * m_OneOverFadeSamples;
+    float xfade = m_remainingFadeSamples * m_oneOverFadeSamples;
     for (uint32 ch = 0; ch < m_numWriteChannels; ++ch) {
         out(ch)[outSample] = xfade_equalPower(
             cubicinterp(fracphase, s0[ch], s1[ch], s2[ch], s3[ch]) * m_currLoop.fade,
@@ -283,30 +283,30 @@ float XPlayBuf::getLoopBoundsFade(const int32 iphase, const Loop& loop) const {
     if (loop.isEndGTStart) {
         int32 startDistance = iphase - loop.start; // loop start
         if (startDistance < m_fadeSamples) {
-            fade *= startDistance * m_OneOverFadeSamples;
+            fade *= static_cast<float>(startDistance) * m_oneOverFadeSamples;
         };
         int32 endDistance = loop.end - iphase; // loop end
         if (endDistance < m_fadeSamples) {
-            fade *= endDistance * m_OneOverFadeSamples;
+            fade *= static_cast<float>(endDistance) * m_oneOverFadeSamples;
         };
     } else {
         // loop spans across buf extremes: needs to fade at buf start and end too
         if (iphase >= loop.start) {
             int32 startDistance = iphase - loop.start; // loop start
             if (startDistance < m_fadeSamples) {
-                fade *= startDistance * m_OneOverFadeSamples;
+                fade *= static_cast<float>(startDistance) * m_oneOverFadeSamples;
             };
             int32 bufEndDistance = m_buf->frames - iphase; // buf end
             if (bufEndDistance < m_fadeSamples) {
-                fade *= bufEndDistance * m_OneOverFadeSamples;
+                fade *= static_cast<float>(bufEndDistance) * m_oneOverFadeSamples;
             };
         } else if (iphase <= loop.end) {
             int32 endDistance = loop.end - iphase; // loop end
             if (endDistance < m_fadeSamples) {
-                fade *= endDistance * m_OneOverFadeSamples;
+                fade *= static_cast<float>(endDistance) * m_oneOverFadeSamples;
             };
             if (iphase < m_fadeSamples) { // buf start
-                fade *= iphase * m_OneOverFadeSamples;
+                fade *= static_cast<float>(iphase) * m_oneOverFadeSamples;
             };
         }
     }
