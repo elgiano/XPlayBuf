@@ -48,6 +48,7 @@ private:
     int32 m_guardFrame;
     uint32 m_numWriteChannels;
     int32 m_fadeSamples;
+    int32 m_bufFrames;
     float m_oneOverFadeSamples;
     float m_remainingFadeSamples;
     float m_argLoopStart;

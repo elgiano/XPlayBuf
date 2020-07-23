@@ -81,15 +81,15 @@ void XPlayBuf::next(int nSamples) {
 // Called only when inputs change.
 void XPlayBuf::loadLoopArgs() {
     m_currLoop.phase =
-        sc_mod(static_cast<double>(m_argLoopStart) * m_buf->samplerate, static_cast<double>(m_buf->frames));
+        sc_mod(static_cast<double>(m_argLoopStart) * m_buf->samplerate, static_cast<double>(m_bufFrames));
     m_currLoop.start = static_cast<int32>(m_currLoop.phase);
     if (m_argLoopDur < 0) {
         // negative loopDur defaults to buffer duration
-        m_currLoop.end = m_buf->frames;
+        m_currLoop.end = m_bufFrames;
     } else {
         m_currLoop.end =
             sc_mod(static_cast<int32>(m_currLoop.phase + static_cast<double>(m_argLoopDur) * m_buf->samplerate),
-                   m_buf->frames);
+                   m_bufFrames);
     }
     // store flag to tell if loop spans across buffer extremes
     m_currLoop.isEndGTStart = m_currLoop.end > m_currLoop.start;
@@ -220,7 +220,7 @@ bool XPlayBuf::isLoopPosOutOfBounds(const Loop& loop, const int32 iphase) const 
     if (loop.isEndGTStart) {
         return iphase < loop.start || iphase > loop.end;
     }
-    return (iphase < loop.start && iphase > loop.end) || (iphase < 0 || iphase > m_buf->frames);
+    return (iphase < loop.start && iphase > loop.end) || (iphase < 0 || iphase > m_bufFrames);
 }
 // version with cast, for check in ::next when m_isLooping==true
 bool XPlayBuf::isLoopPosOutOfBounds(const Loop& loop) const {
@@ -228,7 +228,7 @@ bool XPlayBuf::isLoopPosOutOfBounds(const Loop& loop) const {
     if (loop.isEndGTStart) {
         return iphase < loop.start || iphase > loop.end;
     }
-    return (iphase < loop.start && iphase > loop.end) || (iphase < 0 || iphase > m_buf->frames);
+    return (iphase < loop.start && iphase > loop.end) || (iphase < 0 || iphase > m_bufFrames);
 }
 
 // wrap iphase in loop and buf bounds
@@ -240,36 +240,36 @@ int32 XPlayBuf::wrapPos(int32 iphase, const Loop& loop) const {
         } else {
             // loop.end < loop.start
             // needs to choose one of four wrap strategies, depending on pos and forward vs. reverse
-            if (iphase > m_buf->frames) {
+            if (iphase > m_bufFrames) {
                 // oob after buf end: assume forward
-                if (iphase - m_buf->frames < loop.end) {
+                if (iphase - m_bufFrames < loop.end) {
                     // simples, most common case for small playbackRates
-                    iphase -= m_buf->frames;
+                    iphase -= m_bufFrames;
                 } else {
-                    iphase = sc_wrap(iphase, loop.start, loop.end + m_buf->frames);
-                    if (iphase > m_buf->frames)
-                        iphase -= m_buf->frames;
+                    iphase = sc_wrap(iphase, loop.start, loop.end + m_bufFrames);
+                    if (iphase > m_bufFrames)
+                        iphase -= m_bufFrames;
                 }
             } else if (iphase < 0) {
                 // oob before buf start: assume backwards
-                if (iphase > m_buf->frames - loop.end) {
+                if (iphase > m_bufFrames - loop.end) {
                     // simples, most common case for small playbackRates
-                    iphase += m_buf->frames;
+                    iphase += m_bufFrames;
                 } else {
-                    iphase = sc_wrap(iphase, m_buf->frames - loop.start, loop.end);
-                    if (iphase < m_buf->frames)
-                        iphase += m_buf->frames;
+                    iphase = sc_wrap(iphase, m_bufFrames - loop.start, loop.end);
+                    if (iphase < m_bufFrames)
+                        iphase += m_bufFrames;
                 }
             } else if (m_playbackRate > 0) {
                 // end < iphase < start: playing forward
-                iphase = loop.start + sc_mod(iphase - loop.end, loop.end + m_buf->frames - loop.start);
-                if (iphase > m_buf->frames)
-                    iphase -= m_buf->frames;
+                iphase = loop.start + sc_mod(iphase - loop.end, loop.end + m_bufFrames - loop.start);
+                if (iphase > m_bufFrames)
+                    iphase -= m_bufFrames;
             } else {
                 // end < iphase < start: backwards
-                iphase = loop.end - sc_mod(loop.start - iphase, loop.end + m_buf->frames - loop.start);
+                iphase = loop.end - sc_mod(loop.start - iphase, loop.end + m_bufFrames - loop.start);
                 if (iphase < 0)
-                    iphase += m_buf->frames;
+                    iphase += m_bufFrames;
             };
         }
     }
@@ -296,7 +296,7 @@ float XPlayBuf::getLoopBoundsFade(const int32 iphase, const Loop& loop) const {
             if (startDistance < m_fadeSamples) {
                 fade *= static_cast<float>(startDistance) * m_oneOverFadeSamples;
             };
-            int32 bufEndDistance = m_buf->frames - iphase; // buf end
+            int32 bufEndDistance = m_bufFrames - iphase; // buf end
             if (bufEndDistance < m_fadeSamples) {
                 fade *= static_cast<float>(bufEndDistance) * m_oneOverFadeSamples;
             };
@@ -366,7 +366,8 @@ bool XPlayBuf::getBuf(int nSamples) {
             }
             // store these two to simplify code in other ::next and ::writeFrame
             m_numWriteChannels = sc_min(mNumOutputs, m_buf->channels);
-            m_guardFrame = static_cast<int32>(m_buf->frames - 2);
+            m_bufFrames = m_buf->frames;
+            m_guardFrame = static_cast<int32>(m_bufFrames - 2);
         }
 
         return true;
