@@ -29,7 +29,7 @@ private:
     void next(int nSamples);
     bool getBuf(int nSamples);
     void loadLoopArgs();
-    bool readInputs();
+    void readInputs();
     void writeFrame(int outSample);
     void xfadeFrame(int outSample);
 
@@ -47,7 +47,7 @@ private:
 
     int32 m_guardFrame;
     uint32 m_numWriteChannels;
-    int32 m_fadeSamples;
+    int32 m_totalFadeSamples;
     int32 m_bufFrames;
     float m_oneOverFadeSamples;
     float m_remainingFadeSamples;
@@ -60,6 +60,7 @@ private:
     float m_prevtrig;
 
     bool m_isLooping;
+    bool m_loopChanged;
 };
 
 } // namespace XPlayBuf

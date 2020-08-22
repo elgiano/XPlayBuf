@@ -11,7 +11,7 @@ namespace XPlayBuf {
 XPlayBuf::XPlayBuf():
     m_guardFrame(0),
     m_numWriteChannels(0),
-    m_fadeSamples(1),
+    m_totalFadeSamples(1),
     m_oneOverFadeSamples(1),
     m_remainingFadeSamples(0),
     m_argLoopStart(-2),
@@ -33,7 +33,7 @@ void XPlayBuf::next(int nSamples) {
         return;
     }
 
-    bool loopNeedsUpdate = readInputs();
+    readInputs();
 
     for (int32 outSample = 0; outSample < nSamples; ++outSample) {
         // not looping and out of bounds: clear remaining out samples, release buf and exit
@@ -63,12 +63,12 @@ void XPlayBuf::next(int nSamples) {
             out(ch)[outSample] = 0.f;
         }
         // update currLoop bounds: if loop args changed w/o trig, update currLoop when fade is small
-        if (loopNeedsUpdate && m_currLoop.fade <= m_oneOverFadeSamples) {
+        if (m_loopChanged && m_currLoop.fade <= m_oneOverFadeSamples) {
             // update loop bounds, but keep current phase
             double phase = m_currLoop.phase;
             loadLoopArgs();
             m_currLoop.phase = phase;
-            loopNeedsUpdate = false;
+            m_loopChanged = false;
         }
     }
     RELEASE_SNDBUF_SHARED(m_buf);
@@ -96,20 +96,20 @@ void XPlayBuf::loadLoopArgs() {
 }
 
 // return true if loop args changed w/o a trig, to signal that currLoop needs to be updated in ::next()
-bool XPlayBuf::readInputs() {
+void XPlayBuf::readInputs() {
     m_playbackRate = static_cast<double>(in0(UGenInput::playbackRate)) * m_buf->samplerate * sampleDur();
     m_isLooping = static_cast<bool>(in0(UGenInput::looping));
 
     int argFadeSamples = static_cast<int32>(sc_floor(in0(UGenInput::fadeTime) * m_buf->samplerate + .5));
-    if (argFadeSamples != m_fadeSamples) {
+    if (argFadeSamples != m_totalFadeSamples) {
         // calc reciprocal only on change
-        m_fadeSamples = argFadeSamples;
-        m_oneOverFadeSamples = m_fadeSamples > 0 ? sc_reciprocal(static_cast<float>(m_fadeSamples)) : 1.;
+        m_totalFadeSamples = argFadeSamples;
+        m_oneOverFadeSamples = m_totalFadeSamples > 0 ? sc_reciprocal(static_cast<float>(m_totalFadeSamples)) : 1.;
     }
 
     float argLoopStart = in0(UGenInput::startPos);
     float argLoopDur = in0(UGenInput::loopDur);
-    bool loopChanged = (argLoopStart != m_argLoopStart || argLoopDur != argLoopDur);
+    m_loopChanged = ( m_loopChanged || argLoopStart != m_argLoopStart || argLoopDur != argLoopDur);
     m_argLoopStart = argLoopStart;
     m_argLoopDur = argLoopDur;
 
@@ -120,15 +120,13 @@ bool XPlayBuf::readInputs() {
         mDone = false;
         m_prevLoop = m_currLoop;
         loadLoopArgs();
-        m_remainingFadeSamples = m_fadeSamples;
-        loopChanged = false; // currLoop was already updated: no need to signal ::next()
-    } else if (m_currLoop.start < 0) { // true only at init time
+        m_remainingFadeSamples = m_totalFadeSamples;
+        m_loopChanged = false; // currLoop was already updated: no need to signal ::next()
+    } else if (m_currLoop.start == -1) { // true only at init time
         loadLoopArgs();
-        loopChanged = false;
+        m_loopChanged = false;
     }
     m_prevtrig = trig;
-
-    return loopChanged;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -178,7 +176,7 @@ void XPlayBuf::xfadeFrame(int32 outSample) {
     }
 
     int32 prev_iphase = updateLoopPosAndFade(m_prevLoop);
-    double prev_fracphase = m_prevLoop.phase - iphase;
+    double prev_fracphase = m_prevLoop.phase - prev_iphase;
 
     const float* prev_s1 = m_buf->data + prev_iphase * m_buf->channels;
     const float* prev_s0 = prev_s1 - m_buf->channels;
@@ -192,7 +190,6 @@ void XPlayBuf::xfadeFrame(int32 outSample) {
             prev_s2 -= m_buf->samples;
         }
     }
-
     // sum data from currLoop and prevLoop
     float xfade = m_remainingFadeSamples * m_oneOverFadeSamples;
     for (uint32 ch = 0; ch < m_numWriteChannels; ++ch) {
@@ -282,30 +279,30 @@ float XPlayBuf::getLoopBoundsFade(const int32 iphase, const Loop& loop) const {
     float fade = 1.;
     if (loop.isEndGTStart) {
         int32 startDistance = iphase - loop.start; // loop start
-        if (startDistance < m_fadeSamples) {
+        if (startDistance < m_totalFadeSamples) {
             fade *= static_cast<float>(startDistance) * m_oneOverFadeSamples;
         };
         int32 endDistance = loop.end - iphase; // loop end
-        if (endDistance < m_fadeSamples) {
+        if (endDistance < m_totalFadeSamples) {
             fade *= static_cast<float>(endDistance) * m_oneOverFadeSamples;
         };
     } else {
         // loop spans across buf extremes: needs to fade at buf start and end too
         if (iphase >= loop.start) {
             int32 startDistance = iphase - loop.start; // loop start
-            if (startDistance < m_fadeSamples) {
+            if (startDistance < m_totalFadeSamples) {
                 fade *= static_cast<float>(startDistance) * m_oneOverFadeSamples;
             };
             int32 bufEndDistance = m_bufFrames - iphase; // buf end
-            if (bufEndDistance < m_fadeSamples) {
+            if (bufEndDistance < m_totalFadeSamples) {
                 fade *= static_cast<float>(bufEndDistance) * m_oneOverFadeSamples;
             };
         } else if (iphase <= loop.end) {
             int32 endDistance = loop.end - iphase; // loop end
-            if (endDistance < m_fadeSamples) {
+            if (endDistance < m_totalFadeSamples) {
                 fade *= static_cast<float>(endDistance) * m_oneOverFadeSamples;
             };
-            if (iphase < m_fadeSamples) { // buf start
+            if (iphase < m_totalFadeSamples) { // buf start
                 fade *= static_cast<float>(iphase) * m_oneOverFadeSamples;
             };
         }
@@ -317,9 +314,9 @@ float XPlayBuf::getLoopBoundsFade(const int32 iphase, const Loop& loop) const {
 // fade functions
 
 // equal power sum implementation from XFade2
-float XPlayBuf::xfade_equalPower(float a, float b, double fade) const {
+float XPlayBuf::xfade_equalPower(float fadingIn, float fadingOut, double fade) const {
     int32 ipos = sc_clip(static_cast<int32>(2048.f * fade), 0, 2048);
-    return a * ft->mSine[2048 - ipos] + b * ft->mSine[ipos];
+    return fadingIn * ft->mSine[2048 - ipos] + fadingOut * ft->mSine[ipos];
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
