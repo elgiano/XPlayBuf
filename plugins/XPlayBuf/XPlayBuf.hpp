@@ -7,7 +7,7 @@
 
 namespace XPlayBuf {
 
-enum UGenInput { bufnum, playbackRate, trig, startPos, loopDur, looping, fadeTime };
+enum UGenInput { bufnum, playbackRate, trig, startPos, loopDur, looping, fadeTime, xFadeTime };
 
 struct Loop {
     double phase = -1.;
@@ -50,7 +50,8 @@ private:
     int32 m_totalFadeSamples;
     int32 m_bufFrames;
     float m_oneOverFadeSamples;
-    float m_remainingFadeSamples;
+    float m_remainingXFadeSamples;
+    float m_oneOverXFadeSamples;
     float m_argLoopStart;
     float m_argLoopDur;
     float m_fbufnum;

@@ -13,7 +13,7 @@ XPlayBuf::XPlayBuf():
     m_numWriteChannels(0),
     m_totalFadeSamples(1),
     m_oneOverFadeSamples(1),
-    m_remainingFadeSamples(0),
+    m_remainingXFadeSamples(0),
     m_argLoopStart(-2),
     m_argLoopDur(-2),
     m_fbufnum(-1e9f),
@@ -46,10 +46,10 @@ void XPlayBuf::next(int nSamples) {
             return;
         }
         // if we have samples to xfade:
-        if (m_remainingFadeSamples > 0) {
+        if (m_remainingXFadeSamples > 0) {
             // read and advance both currLoop and prevLoop
             xfadeFrame(outSample);
-            m_remainingFadeSamples -= sc_abs(m_playbackRate);
+            m_remainingXFadeSamples -= sc_abs(m_playbackRate);
             m_currLoop.phase += m_playbackRate;
             m_prevLoop.phase += m_playbackRate;
         } else {
@@ -116,11 +116,14 @@ void XPlayBuf::readInputs() {
     float trig = in0(UGenInput::trig);
     bool triggered = trig > 0.f && m_prevtrig <= 0.f;
 
-    if (triggered) { // start cross-fade: copy old loop to prevLoop, set m_remainingFadeSamples
+    if (triggered) { // start cross-fade: copy old loop to prevLoop, set m_remainingXFadeSamples
         mDone = false;
         m_prevLoop = m_currLoop;
         loadLoopArgs();
-        m_remainingFadeSamples = m_totalFadeSamples;
+        m_remainingXFadeSamples = static_cast<int32>(sc_floor(in0(UGenInput::xFadeTime) * m_buf->samplerate + .5));
+        if(m_remainingXFadeSamples < 0) m_remainingXFadeSamples = m_totalFadeSamples;
+        m_oneOverXFadeSamples = m_remainingXFadeSamples > 0 ? sc_reciprocal(static_cast<float>(m_remainingXFadeSamples)) : 1.;
+
         m_loopChanged = false; // currLoop was already updated: no need to signal ::next()
     } else if (m_currLoop.start == -1) { // true only at init time
         loadLoopArgs();
@@ -191,7 +194,7 @@ void XPlayBuf::xfadeFrame(int32 outSample) {
         }
     }
     // sum data from currLoop and prevLoop
-    float xfade = m_remainingFadeSamples * m_oneOverFadeSamples;
+    float xfade = m_remainingXFadeSamples * m_oneOverXFadeSamples;
     for (uint32 ch = 0; ch < m_numWriteChannels; ++ch) {
         out(ch)[outSample] = xfade_equalPower(
             cubicinterp(fracphase, s0[ch], s1[ch], s2[ch], s3[ch]) * m_currLoop.fade,
