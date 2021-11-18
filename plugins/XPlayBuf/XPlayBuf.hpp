@@ -7,64 +7,61 @@
 
 namespace XPlayBuf {
 
+enum UGenInput { bufnum, playbackRate, trig, startPos, loopDur, looping, fadeTime, xFadeTime };
+
 struct Loop {
-  double phase = -1.;
-  double start = -1.;
-  double end = -1.;
-  double samples = 0.;
+    double phase = -1.;
+    bool isEndGTStart = false;
+    int32 start = -1;
+    int32 end = -1;
+    float fade = 1.;
 };
 
-class XPlayBuf;
-typedef void (XPlayBuf::*FadeFunc)(const int &, const int &, const float &,
-                                   const double &);
-typedef void (XPlayBuf::*LoopFunc)(const int &nSamples, const int &outSample,
-                                   const Loop &loop, const FadeFunc writeFunc,
-                                   double mix);
 class XPlayBuf : public SCUnit {
 public:
-  XPlayBuf();
+    XPlayBuf();
 
-  // Destructor
-  // ~XPlayBuf();
+    // Destructor
+    // ~XPlayBuf();
 
 private:
-  // Calc function
-  void next(int nSamples);
-  bool getBuf(int nSamples);
-  void readInputs();
-  void updateLoop();
+    // Calc function
+    void next(int nSamples);
+    bool getBuf(int nSamples);
+    void loadLoopArgs();
+    void readInputs();
+    void writeFrame(int outSample);
+    void xfadeFrame(int outSample);
 
-  bool wrapPos(Loop &loop) const;
-  double getFadeAtBounds(const Loop &loop) const;
-  void loopBody_nointerp(const int &nSamples, const int &outSample,
-                         const Loop &loop, const FadeFunc writeFunc, double mix);
-  void loopBody_lininterp(const int &nSamples, const int &outSample,
-                          const Loop &loop, const FadeFunc writeFunc, double mix);
-  void loopBody_cubicinterp(const int &nSamples, const int &outSample,
-                            const Loop &loop, const FadeFunc writeFunc, double mix);
+    int32 updateLoopPosAndFade(Loop& loop) const;
+    int32 wrapPos(int32 iphase, const Loop& loop) const;
+    float getLoopBoundsFade(const int32 iphase, const Loop& loop) const;
+    bool isLoopPosOutOfBounds(const Loop& loop) const;
+    bool isLoopPosOutOfBounds(const Loop& loop, const int32 iphase) const;
 
-  void write(const int &channel, const int &OUT_SAMPLE, const float &in,
-             const double &mix);
-  void overwrite_equalPower(const int &channel, const int &OUT_SAMPLE,
-                            const float &in, const double &mix);
-  void overwrite_lin(const int &channel, const int &OUT_SAMPLE, const float &in,
-                     const double &mix);
+    float xfade_equalPower(float a, float b, double fade) const;
 
-  // Member variables
-  Loop currLoop;
-  Loop prevLoop;
+    // Member variables
+    Loop m_currLoop;
+    Loop m_prevLoop;
 
-  double mPlaybackRate;
-  int32 mLoop;
-  float m_prevtrig;
-  float m_fbufnum;
-  float m_failedBufNum;
-  double m_fadeSamples;
-  double m_rFadeSamples;
-  double m_remainingFadeSamples;
-  FadeFunc mFadeFunc;
-  LoopFunc mLoopFunc;
-  SndBuf *m_buf;
+    int32 m_guardFrame;
+    uint32 m_numWriteChannels;
+    int32 m_totalFadeSamples;
+    int32 m_bufFrames;
+    float m_oneOverFadeSamples;
+    float m_remainingXFadeSamples;
+    float m_oneOverXFadeSamples;
+    float m_argLoopStart;
+    float m_argLoopDur;
+    float m_fbufnum;
+    SndBuf* m_buf;
+    double m_playbackRate;
+    float m_failedBufNum;
+    float m_prevtrig;
+
+    bool m_isLooping;
+    bool m_loopChanged;
 };
 
 } // namespace XPlayBuf
