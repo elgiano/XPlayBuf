@@ -20,13 +20,12 @@ I strongly support [esluyter/super-bufrd](https://github.com/esluyter/super-bufr
   - are updated only on trigger;
   - can loop across buffer end (e.g. a loop of 10s from BufDur - 5s to 5s)
 - Modulateable fadeTime, with a choice between linear or equal-power fades.
+- Cubic interpolation only.
+- Can loop across buffer boundaries (e.g buffer is 3 seconds, loop is 2 seconds and start is at 1s: goes from 2 to 3, fades to 0, goes to 1 and fades back to 2)
 
 ### TODO
-- Linear and no interpolation
-- .kr method
 - adjust fadeTime and/or loopDur to playback rate?
 - UnitTests
-- ~~Loops across buffer boundaries~~
 
 ### Requirements
 
