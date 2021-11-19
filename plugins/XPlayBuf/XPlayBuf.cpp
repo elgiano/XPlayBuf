@@ -110,7 +110,7 @@ void XPlayBuf::readInputs() {
 
     float argLoopStart = in0(UGenInput::startPos);
     float argLoopDur = in0(UGenInput::loopDur);
-    m_loopChanged = ( m_loopChanged || argLoopStart != m_argLoopStart || argLoopDur != argLoopDur);
+    m_loopChanged = (m_loopChanged || argLoopStart != m_argLoopStart || argLoopDur != m_argLoopDur);
     m_argLoopStart = argLoopStart;
     m_argLoopDur = argLoopDur;
 
