@@ -84,8 +84,9 @@ void XPlayBuf::loadLoopArgs() {
         sc_mod(static_cast<double>(m_argLoopStart) * m_buf->samplerate, static_cast<double>(m_bufFrames));
     m_currLoop.start = static_cast<int32>(m_currLoop.phase);
     if (m_argLoopDur < 0) {
-        // negative loopDur defaults to buffer duration
+        // negative loopDur defaults to loop = whole buffer
         m_currLoop.end = m_bufFrames;
+        m_currLoop.start = 0;
     } else {
         m_currLoop.end =
             sc_mod(static_cast<int32>(m_currLoop.phase + static_cast<double>(m_argLoopDur) * m_buf->samplerate),
@@ -222,13 +223,10 @@ bool XPlayBuf::isLoopPosOutOfBounds(const Loop& loop, const int32 iphase) const 
     }
     return (iphase < loop.start && iphase > loop.end) || (iphase < 0 || iphase > m_bufFrames);
 }
-// version with cast, for check in ::next when m_isLooping==true
+// version with cast, for check in ::next when !m_isLooping
 bool XPlayBuf::isLoopPosOutOfBounds(const Loop& loop) const {
     const int32 iphase = static_cast<int32>(loop.phase);
-    if (loop.isEndGTStart) {
-        return iphase < loop.start || iphase > loop.end;
-    }
-    return (iphase < loop.start && iphase > loop.end) || (iphase < 0 || iphase > m_bufFrames);
+    return isLoopPosOutOfBounds(loop, iphase);
 }
 
 // wrap iphase in loop and buf bounds
