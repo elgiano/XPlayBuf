@@ -36,12 +36,12 @@ A trigger causes a jump to the startPos, and updates loop boundaries.
 A trigger occurs when a signal changes from negative value to positive value.
 
 argument::startPos
-Position in seconds to start playback. Playback won't jump here on change, only on trigger.
+Position in seconds to start playback. Playback won't jump here on change, only on trigger, or if looping, on the next loop iteration.
 
 argument::loopDur
 Loop duration in seconds. Defaults to -1,  which means the buffer's total duration.
 If loop is set to 0 (i.e. not looping), playback ends after loopDur seconds, and the UGen's done flag is set.
-This is modulateable, but will only update on trigger.
+This is modulateable, but will only update on trigger, or on next loop iteration if looping.
 note::
 This is not an absolute duration: it specifies the loop duration at playback rate = 1. So, for instance, if loopDur=1 and rate=2, XPlayBuf will still loop over 1 second of recorded material, but each iteration will last 0.5 seconds.
 ::
@@ -51,12 +51,6 @@ argument::loop
 
 argument::fadeTime
 Duration in seconds of all crossfades, both on triggers and at loop boundaries
-
-argument::equalPower
-0 is linear fades, 1 is equal power
-
-argument::interpolation
-0: no interpolation, 1: liner interpolation, 2: cubic interpolation (default)
 
 note::
 there is no doneAction, please use link::Classes/Done:: or link::Classes/FreeSelfWhenDone::
