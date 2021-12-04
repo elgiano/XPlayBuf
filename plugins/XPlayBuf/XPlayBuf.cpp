@@ -328,10 +328,7 @@ bool XPlayBuf::getBuf(int nSamples) {
     float fbufnum = in0(UGenInput::bufnum);
     if (fbufnum < 0.f)
         fbufnum = 0.f;
-    if (fbufnum == m_fbufnum) {
-        ACQUIRE_SNDBUF_SHARED(m_buf);
-        return true;
-    } else {
+    if (fbufnum != m_fbufnum) {
         uint32 bufnum = static_cast<uint32>(fbufnum);
         if (bufnum >= mWorld->mNumSndBufs) {
             int localBufNum = bufnum - mWorld->mNumSndBufs;
@@ -340,35 +337,36 @@ bool XPlayBuf::getBuf(int nSamples) {
             } else {
                 m_buf = mWorld->mSndBufs;
             }
-        } else {
+      } else {
             m_buf = mWorld->mSndBufs + bufnum;
-        }
-        m_fbufnum = fbufnum;
+      }
+      m_fbufnum = fbufnum;
 
-        ACQUIRE_SNDBUF_SHARED(m_buf);
+      // store these two to simplify code in other ::next and ::writeFrame
+      m_numWriteChannels = sc_min(mNumOutputs, m_buf->channels);
+      m_bufFrames = m_buf->frames;
+      m_guardFrame = static_cast<int32>(m_bufFrames - 2);
+    }
 
-        if (!m_buf->data) {
-            if (mWorld->mVerbosity > -1 && !mDone && (m_failedBufNum != fbufnum)) {
-                Print("Buffer UGen: no buffer data\n");
-                m_failedBufNum = fbufnum;
-            }
-            return false;
-        } else {
-            if (m_buf->channels != mNumOutputs) {
-                if (mWorld->mVerbosity > -1 && !mDone && (m_failedBufNum != fbufnum)) {
-                    Print("Buffer UGen channel mismatch: expected %i, yet buffer has %i "
-                          "channels\n",
-                          mNumOutputs, m_buf->channels);
-                    m_failedBufNum = fbufnum;
-                }
-            }
-            // store these two to simplify code in other ::next and ::writeFrame
-            m_numWriteChannels = sc_min(mNumOutputs, m_buf->channels);
-            m_bufFrames = m_buf->frames;
-            m_guardFrame = static_cast<int32>(m_bufFrames - 2);
-        }
+    ACQUIRE_SNDBUF_SHARED(m_buf);
 
-        return true;
+    // CHECK_BUFFER_DATA
+    if (!m_buf->data) {
+      if (mWorld->mVerbosity > -1 && !mDone && (m_failedBufNum != fbufnum)) {
+          Print("Buffer UGen: no buffer data\n");
+          m_failedBufNum = fbufnum;
+      }
+      return false;
+    } else {
+      if (m_buf->channels != mNumOutputs) {
+          if (mWorld->mVerbosity > -1 && !mDone && (m_failedBufNum != fbufnum)) {
+              Print("Buffer UGen channel mismatch: expected %i, yet buffer has %i "
+                    "channels\n",
+                    mNumOutputs, m_buf->channels);
+              m_failedBufNum = fbufnum;
+          }
+      }
+      return true;
     }
 }
 
