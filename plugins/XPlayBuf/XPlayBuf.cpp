@@ -85,13 +85,17 @@ void XPlayBuf::loadLoopArgs() {
     m_currLoop.start = static_cast<int32>(m_currLoop.phase);
     if (m_argLoopDur < 0) {
         // negative loopDur defaults to loop = whole buffer
-        m_currLoop.end = m_bufFrames;
+        m_currLoop.end = m_bufFrames - m_totalXFadeSamples;
         m_currLoop.start = 0;
     } else {
-        m_currLoop.end =
-            sc_mod(static_cast<int32>(m_currLoop.phase + static_cast<double>(m_argLoopDur) * m_buf->samplerate),
-                   m_bufFrames);
+        m_currLoop.end = sc_mod(
+          static_cast<int32>(m_currLoop.phase + static_cast<double>(m_argLoopDur) * m_buf->samplerate)
+          + m_totalXFadeSamples,
+        m_bufFrames);
     }
+    // store fade points for loop crossfades
+    m_currLoop.fadeoutFrame = sc_mod(m_currLoop.end - m_totalXFadeSamples, m_bufFrames);
+    m_currLoop.rFadeoutFrame = sc_mod(m_currLoop.start + m_totalXFadeSamples, m_bufFrames);
     // store flag to tell if loop spans across buffer extremes
     m_currLoop.isEndGTStart = m_currLoop.end > m_currLoop.start;
 }
@@ -107,6 +111,17 @@ void XPlayBuf::readInputs() {
         m_totalFadeSamples = argFadeSamples;
         m_oneOverFadeSamples = m_totalFadeSamples > 0 ? sc_reciprocal(static_cast<float>(m_totalFadeSamples)) : 1.;
     }
+    int argXFadeSamples = static_cast<int32>(sc_floor(in0(UGenInput::xFadeTime) * m_buf->samplerate + .5));
+    // xFadeTime = -1 means xFadeTime = fadeTime
+    if (argXFadeSamples < 0) {
+      if (m_totalXFadeSamples != m_totalFadeSamples) {
+          m_totalXFadeSamples = m_totalFadeSamples;
+          m_oneOverXFadeSamples = m_oneOverFadeSamples;
+      }
+    } else if (m_totalXFadeSamples != argXFadeSamples) {
+        m_totalXFadeSamples = argXFadeSamples;
+        m_oneOverXFadeSamples = argXFadeSamples > 0 ? sc_reciprocal(static_cast<float>(m_totalXFadeSamples)) : 1.;
+    }
 
     float argLoopStart = in0(UGenInput::startPos);
     float argLoopDur = in0(UGenInput::loopDur);
@@ -119,18 +134,19 @@ void XPlayBuf::readInputs() {
 
     if (triggered) { // start cross-fade: copy old loop to prevLoop, set m_remainingXFadeSamples
         mDone = false;
-        m_prevLoop = m_currLoop;
-        loadLoopArgs();
-        m_remainingXFadeSamples = static_cast<int32>(sc_floor(in0(UGenInput::xFadeTime) * m_buf->samplerate + .5));
-        if(m_remainingXFadeSamples < 0) m_remainingXFadeSamples = m_totalFadeSamples;
-        m_oneOverXFadeSamples = m_remainingXFadeSamples > 0 ? sc_reciprocal(static_cast<float>(m_remainingXFadeSamples)) : 1.;
-
-        m_loopChanged = false; // currLoop was already updated: no need to signal ::next()
+        startXFade();
     } else if (m_currLoop.start == -1) { // true only at init time
         loadLoopArgs();
         m_loopChanged = false;
     }
     m_prevtrig = trig;
+}
+
+void XPlayBuf::startXFade() {
+    m_prevLoop = m_currLoop;
+    loadLoopArgs();
+    m_remainingXFadeSamples = m_totalXFadeSamples;
+    m_loopChanged = false; // currLoop was already updated: no need to signal ::next()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -156,8 +172,14 @@ void XPlayBuf::writeFrame(int32 outSample) {
         }
     }
     // preform cubicinterp and write out each channel
-    for (uint32 ch = 0; ch < m_numWriteChannels; ++ch) {
+    for (uint16 ch = 0; ch < m_numWriteChannels; ++ch) {
         out(ch)[outSample] = cubicinterp(fracphase, s0[ch], s1[ch], s2[ch], s3[ch]) * m_currLoop.fade;
+    }
+
+    if (m_playbackRate > 0) {
+      if (iphase >= m_currLoop.fadeoutFrame) startXFade();
+    } else {
+      if (iphase <= m_currLoop.rFadeoutFrame) startXFade();
     }
 }
 
@@ -196,10 +218,16 @@ void XPlayBuf::xfadeFrame(int32 outSample) {
     }
     // sum data from currLoop and prevLoop
     float xfade = m_remainingXFadeSamples * m_oneOverXFadeSamples;
-    for (uint32 ch = 0; ch < m_numWriteChannels; ++ch) {
+    for (uint16 ch = 0; ch < m_numWriteChannels; ++ch) {
         out(ch)[outSample] = xfade_equalPower(
             cubicinterp(fracphase, s0[ch], s1[ch], s2[ch], s3[ch]) * m_currLoop.fade,
             cubicinterp(prev_fracphase, prev_s0[ch], prev_s1[ch], prev_s2[ch], prev_s3[ch]) * m_prevLoop.fade, xfade);
+    }
+
+    if (m_playbackRate > 0) {
+      if (iphase >= m_currLoop.fadeoutFrame) startXFade();
+    } else {
+      if (iphase <= m_currLoop.rFadeoutFrame) startXFade();
     }
 }
 
@@ -276,9 +304,11 @@ int32 XPlayBuf::wrapPos(int32 iphase, const Loop& loop) const {
 
 // get a fade coefficient
 // depends on proximity to loop bounds, and also to buf bounds if loop spans across them (start > end)
+// if xfading, skip loop bounds fades
 float XPlayBuf::getLoopBoundsFade(const int32 iphase, const Loop& loop) const {
     float fade = 1.;
     if (loop.isEndGTStart) {
+        if (m_remainingXFadeSamples > 0) return 1;
         int32 startDistance = iphase - loop.start; // loop start
         if (startDistance < m_totalFadeSamples) {
             fade *= static_cast<float>(startDistance) * m_oneOverFadeSamples;
@@ -290,15 +320,17 @@ float XPlayBuf::getLoopBoundsFade(const int32 iphase, const Loop& loop) const {
     } else {
         // loop spans across buf extremes: needs to fade at buf start and end too
         if (iphase >= loop.start) {
-            int32 startDistance = iphase - loop.start; // loop start
-            if (startDistance < m_totalFadeSamples) {
-                fade *= static_cast<float>(startDistance) * m_oneOverFadeSamples;
-            };
+            if (m_remainingXFadeSamples == 0) {
+              int32 startDistance = iphase - loop.start; // loop start
+              if (startDistance < m_totalFadeSamples ) {
+                  fade *= static_cast<float>(startDistance) * m_oneOverFadeSamples;
+              };
+            }
             int32 bufEndDistance = m_bufFrames - iphase; // buf end
             if (bufEndDistance < m_totalFadeSamples) {
                 fade *= static_cast<float>(bufEndDistance) * m_oneOverFadeSamples;
             };
-        } else if (iphase <= loop.end) {
+        } else if (iphase <= loop.end && m_remainingXFadeSamples == 0) {
             int32 endDistance = loop.end - iphase; // loop end
             if (endDistance < m_totalFadeSamples) {
                 fade *= static_cast<float>(endDistance) * m_oneOverFadeSamples;

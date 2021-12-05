@@ -16,20 +16,16 @@ classmethods::
 method::ar
 
 argument::numChannels
-Number of channels that the buffer will be. This must be a fixed
-integer. The architecture of the SynthDef cannot change after it
-is compiled.
+Number of channels that the buffer will be. This must be a fixed integer.
+The architecture of the SynthDef cannot change after it is compiled.
+If you supply a buffer with a different number of channels than what specified by code::numChannels::, XPlayBuf will post a warning and output code::numChannels:: channels anyway (missing channels are replaced with silence and exceeding channels are omitted).
 
 argument::bufnum
 The index of the buffer to use.
-note::
-If you supply a bufnum of a buffer with a differing number of channels
-than the one specified in this XPlayBuf, it will post a warning and output the channels it can.
-::
 
 argument::rate
-automatically adjusted by the buffer's rateScale, 1.0 is original speed, 2.0 is one octave up, 0.5 is one
-octave down -1.0 is backwards normal rate… etc. Interpolation is cubic.
+automatically adjusted by the buffer's link::Classes/BufRateScale::, 1.0 is original speed, 0.5 is one
+octave down -2.0 is one octave up backwards… etc. Interpolation is cubic.
 
 argument::trigger
 A trigger causes a jump to the startPos, and updates loop boundaries.
@@ -50,14 +46,20 @@ argument::loop
 1 means true, 0 means false. This is modulateable.
 
 argument::fadeTime
-Duration in seconds of all crossfades, both on triggers and at loop boundaries
+Duration in seconds of fadein-fadeouts occurring at both buffer and loop boundaries.
 
-note::
-there is no doneAction, please use link::Classes/Done:: or link::Classes/FreeSelfWhenDone::
+argument::xFadeTime
+Duration in seconds of crossfades occurring on trigger and at loop boundaries.
+Set to code::-1:: to be equal to code::fadeTime:: and to code::0:: to disable crossfades.
+
+warning::
+to keep a consistent loop duration, xFadeTime prolongs the amount of buffer data read in a loop,
+e.g. for code::loopDur = 2:: and code::xFadeTime = 1:: every loop will play 3 seconds of data from the buffer, using the third second for fadeout.
 ::
-note::
-there is also no reset position, such as the one provided by link::Classes/Phasor::
-::
+
+discussion::
+Note that there is no doneAction, please use link::Classes/Done:: or link::Classes/FreeSelfWhenDone::
+
 
 examples::
 

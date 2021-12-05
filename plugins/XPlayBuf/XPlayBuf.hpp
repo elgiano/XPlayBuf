@@ -11,10 +11,12 @@ enum UGenInput { bufnum, playbackRate, trig, startPos, loopDur, looping, fadeTim
 
 struct Loop {
     double phase = -1.;
-    bool isEndGTStart = false;
     int32 start = -1;
     int32 end = -1;
+    int32 fadeoutFrame = 0;
+    int32 rFadeoutFrame = 0;
     float fade = 1.;
+    bool isEndGTStart = false;
 };
 
 class XPlayBuf : public SCUnit {
@@ -38,7 +40,7 @@ private:
     float getLoopBoundsFade(const int32 iphase, const Loop& loop) const;
     bool isLoopPosOutOfBounds(const Loop& loop) const;
     bool isLoopPosOutOfBounds(const Loop& loop, const int32 iphase) const;
-
+    void startXFade();
     float xfade_equalPower(float a, float b, double fade) const;
 
     // Member variables
@@ -46,10 +48,13 @@ private:
     Loop m_prevLoop;
 
     int32 m_guardFrame;
-    uint32 m_numWriteChannels;
-    int32 m_totalFadeSamples;
+    uint16 m_numWriteChannels;
+    bool m_isLooping;
+    bool m_loopChanged;
     int32 m_bufFrames;
+    int32 m_totalFadeSamples;
     float m_oneOverFadeSamples;
+    int32 m_totalXFadeSamples;
     float m_remainingXFadeSamples;
     float m_oneOverXFadeSamples;
     float m_argLoopStart;
@@ -60,8 +65,7 @@ private:
     float m_failedBufNum;
     float m_prevtrig;
 
-    bool m_isLooping;
-    bool m_loopChanged;
+
 };
 
 } // namespace XPlayBuf
