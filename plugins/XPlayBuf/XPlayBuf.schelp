@@ -87,8 +87,14 @@ x = { XPlayBuf.ar(1, b, \rate.kr(1), startPos:1, loopDur:1, loop:1) }.play;
 x.set(\rate, 1); // original speed
 x.set(\rate, 2); // octave above
 x.set(\rate, 0.5); // octave below
+x.set(\rate, -2/3); // fifth below, backwards
 
-// freeing the synth
-{p = XPlayBuf.ar(1,b, loopDur: 1, loop:0); FreeSelfWhenDone.kr(p); p}.play.onFree{"FREE".postln}
-
+// freeing the synth automatically on loop end
+(
+{
+  p = XPlayBuf.ar(1,b, loopDur: 1, loop:0, fadeTime: 0.01);
+  FreeSelfWhenDone.kr(p);
+  p
+}.play.onFree{"FREE".postln}
+)
 ::
