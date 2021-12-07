@@ -9,7 +9,8 @@ A buffer player that can loop and fade
 
 All time parameters (startPos, loopDur, fadeTime) are given in seconds.
 Playback rate is automatically adjusted by link::Classes/BufRateScale::.
-Crossfades when skipping to new positions on trigger, and fades to silence on loop boundaries.
+Crossfades when skipping to new positions on trigger, and fades to silence on buffer boundaries.
+On loop boundaries it can either fade to silence or crossfade.
 
 classmethods::
 
