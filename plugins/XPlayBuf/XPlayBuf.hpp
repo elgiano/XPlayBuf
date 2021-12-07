@@ -41,6 +41,7 @@ private:
     bool isLoopPosOutOfBounds(const Loop& loop) const;
     bool isLoopPosOutOfBounds(const Loop& loop, const int32 iphase) const;
     void startXFade();
+    void startXFadeIfNeeded(int32 iphase);
     float xfade_equalPower(float a, float b, double fade) const;
 
     // Member variables

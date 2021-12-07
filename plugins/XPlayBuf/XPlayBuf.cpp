@@ -149,6 +149,14 @@ void XPlayBuf::startXFade() {
     m_loopChanged = false; // currLoop was already updated: no need to signal ::next()
 }
 
+void XPlayBuf::startXFadeIfNeeded(int32 iphase) {
+  if (!m_isLooping) return;
+  bool posNeedsToStartFade = m_playbackRate > 0 ?
+    iphase >= m_currLoop.fadeoutFrame :
+    iphase <= m_currLoop.rFadeoutFrame;
+  if (posNeedsToStartFade) startXFade();
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // write funcs: for one frame, wrap pos in loop and write out all channels
 
@@ -175,12 +183,7 @@ void XPlayBuf::writeFrame(int32 outSample) {
     for (uint16 ch = 0; ch < m_numWriteChannels; ++ch) {
         out(ch)[outSample] = cubicinterp(fracphase, s0[ch], s1[ch], s2[ch], s3[ch]) * m_currLoop.fade;
     }
-
-    if (m_playbackRate > 0) {
-      if (iphase >= m_currLoop.fadeoutFrame) startXFade();
-    } else {
-      if (iphase <= m_currLoop.rFadeoutFrame) startXFade();
-    }
+    startXFadeIfNeeded(iphase);
 }
 
 // xfade currLoop with prevLoop:li
@@ -224,11 +227,7 @@ void XPlayBuf::xfadeFrame(int32 outSample) {
             cubicinterp(prev_fracphase, prev_s0[ch], prev_s1[ch], prev_s2[ch], prev_s3[ch]) * m_prevLoop.fade, xfade);
     }
 
-    if (m_playbackRate > 0) {
-      if (iphase >= m_currLoop.fadeoutFrame) startXFade();
-    } else {
-      if (iphase <= m_currLoop.rFadeoutFrame) startXFade();
-    }
+    startXFadeIfNeeded(iphase);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
