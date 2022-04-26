@@ -105,13 +105,20 @@ void XPlayBuf::readInputs() {
     m_playbackRate = static_cast<double>(in0(UGenInput::playbackRate)) * m_buf->samplerate * sampleDur();
     m_isLooping = static_cast<bool>(in0(UGenInput::looping));
 
+    float argLoopStart = in0(UGenInput::startPos);
+    float argLoopDur = in0(UGenInput::loopDur);
+    m_loopChanged = (m_loopChanged || argLoopStart != m_argLoopStart || argLoopDur != m_argLoopDur);
+    m_argLoopStart = argLoopStart;
+    m_argLoopDur = argLoopDur;
+
     int argFadeSamples = static_cast<int32>(sc_floor(in0(UGenInput::fadeTime) * m_buf->samplerate + .5));
     if (argFadeSamples != m_totalFadeSamples) {
         // calc reciprocal only on change
         m_totalFadeSamples = argFadeSamples;
         m_oneOverFadeSamples = m_totalFadeSamples > 0 ? sc_reciprocal(static_cast<float>(m_totalFadeSamples)) : 1.;
     }
-    int argXFadeSamples = static_cast<int32>(sc_floor(in0(UGenInput::xFadeTime) * m_buf->samplerate + .5));
+    float argXFadeTime = sc_min(in0(UGenInput::xFadeTime), argLoopDur);
+    int argXFadeSamples = static_cast<int32>(sc_floor(argXFadeTime * m_buf->samplerate + .5));
     // xFadeTime = -1 means xFadeTime = fadeTime
     if (argXFadeSamples < 0) {
       if (m_totalXFadeSamples != m_totalFadeSamples) {
@@ -123,11 +130,6 @@ void XPlayBuf::readInputs() {
         m_oneOverXFadeSamples = argXFadeSamples > 0 ? sc_reciprocal(static_cast<float>(m_totalXFadeSamples)) : 1.;
     }
 
-    float argLoopStart = in0(UGenInput::startPos);
-    float argLoopDur = in0(UGenInput::loopDur);
-    m_loopChanged = (m_loopChanged || argLoopStart != m_argLoopStart || argLoopDur != m_argLoopDur);
-    m_argLoopStart = argLoopStart;
-    m_argLoopDur = argLoopDur;
 
     float trig = in0(UGenInput::trig);
     bool triggered = trig > 0.f && m_prevtrig <= 0.f;

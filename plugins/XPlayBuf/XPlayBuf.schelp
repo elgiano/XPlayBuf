@@ -47,11 +47,14 @@ argument::loop
 1 means true, 0 means false. This is modulateable.
 
 argument::fadeTime
-Duration in seconds of fadein-fadeouts occurring at both buffer and loop boundaries.
+Duration in seconds of fadein-fadeouts occurring at both buffer and loop
+boundaries. Set to code::0:: to disable fading.
 
 argument::xFadeTime
 Duration in seconds of crossfades occurring on trigger and at loop boundaries.
-Set to code::-1:: to be equal to code::fadeTime:: and to code::0:: to disable crossfades.
+XPlayBuf will clip this value to be code::<= loopDur::.
+
+Set to code::0:: to disable crossfades and to code::-1:: to make it equal to code::fadeTime::. 
 
 warning::
 to keep a consistent loop duration, xFadeTime prolongs the amount of buffer data read in a loop,
