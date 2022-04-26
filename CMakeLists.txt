@@ -70,6 +70,7 @@ set(XPlayBuf_cpp_files
 )
 set(XPlayBuf_sc_files
     plugins/XPlayBuf/XPlayBuf.sc
+    plugins/XPlayBuf/TestXPlayBuf.sc
 )
 set(XPlayBuf_schelp_files
     plugins/XPlayBuf/XPlayBuf.schelp
