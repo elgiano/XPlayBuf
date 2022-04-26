@@ -153,9 +153,17 @@ void XPlayBuf::startXFade() {
 
 void XPlayBuf::startXFadeIfNeeded(int32 iphase) {
   if (!m_isLooping) return;
-  bool posNeedsToStartFade = m_playbackRate > 0 ?
-    iphase >= m_currLoop.fadeoutFrame :
-    iphase <= m_currLoop.rFadeoutFrame;
+  bool posNeedsToStartFade;
+
+  if(m_currLoop.isEndGTStart) {
+      posNeedsToStartFade = m_playbackRate > 0 ?
+          iphase >= m_currLoop.fadeoutFrame :
+          iphase <= m_currLoop.rFadeoutFrame;
+  } else {
+      posNeedsToStartFade = m_playbackRate > 0 ?
+          iphase >= m_currLoop.fadeoutFrame && iphase < m_currLoop.end :
+          iphase <= m_currLoop.rFadeoutFrame && iphase > m_currLoop.start;
+  }
   if (posNeedsToStartFade) startXFade();
 }
 
