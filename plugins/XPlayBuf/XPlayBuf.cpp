@@ -16,6 +16,7 @@ XPlayBuf::XPlayBuf():
     m_remainingXFadeSamples(0),
     m_argLoopStart(-2),
     m_argLoopDur(-2),
+    m_argXFadeTime(-2),
     m_fbufnum(-1e9f),
     m_buf(nullptr),
     m_playbackRate(1),
@@ -83,21 +84,46 @@ void XPlayBuf::loadLoopArgs() {
     m_currLoop.phase =
         sc_mod(static_cast<double>(m_argLoopStart) * m_buf->samplerate, static_cast<double>(m_bufFrames));
     m_currLoop.start = static_cast<int32>(m_currLoop.phase);
-    if (m_argLoopDur < 0) {
-        // negative loopDur defaults to loop = whole buffer
-        m_currLoop.end = m_bufFrames - m_totalXFadeSamples;
-        m_currLoop.start = 0;
-    } else {
-        m_currLoop.end = sc_mod(
-          static_cast<int32>(m_currLoop.phase + static_cast<double>(m_argLoopDur) * m_buf->samplerate)
-          + m_totalXFadeSamples,
-        m_bufFrames);
+
+    // negative loopDur defaults to loop = whole buffer
+    int32 loopSamples = static_cast<int32>(
+            m_argLoopDur < 0 ? m_bufFrames : m_argLoopDur * m_buf->samplerate
+    );
+    // loopSamples can't be bigger than bufFrames
+    loopSamples = sc_min(loopSamples, m_bufFrames);
+
+    // 0 < xFade < loopSamples
+    int32 xFadeSamples = sc_max(0, static_cast<int32>(m_argXFadeTime * m_buf->samplerate));
+    xFadeSamples = sc_min(xFadeSamples, loopSamples);
+    m_currLoop.xFadeSamples = xFadeSamples;
+
+    // loopDur + xFade can't be bigger than bufFrames: keep loopDur, shrink xFade
+    if (loopSamples + xFadeSamples > m_bufFrames) {
+        m_currLoop.xFadeSamples = m_bufFrames - loopSamples;
     }
-    // store fade points for loop crossfades
-    m_currLoop.fadeoutFrame = sc_mod(m_currLoop.end - m_totalXFadeSamples, m_bufFrames);
-    m_currLoop.rFadeoutFrame = sc_mod(m_currLoop.start + m_totalXFadeSamples, m_bufFrames);
+
+    // xFadeSamples extends end: end = start + dur + xFade
+    m_currLoop.end = sc_mod(
+            static_cast<int32>(m_currLoop.phase) + loopSamples + xFadeSamples,
+            m_bufFrames
+    );
+    if (m_currLoop.end == m_currLoop.start) --m_currLoop.end;
+
+    // store xFadeSamples and its reciprocal
+    m_currLoop.xFadeSamples = xFadeSamples;
+    m_oneOverXFadeSamples = m_currLoop.xFadeSamples > 0 ?
+        sc_reciprocal(static_cast<double>(m_currLoop.xFadeSamples)) : 1.;
     // store flag to tell if loop spans across buffer extremes
     m_currLoop.isEndGTStart = m_currLoop.end > m_currLoop.start;
+   /*  Print("%d -> %d %d X%d=%f (%d)\n",
+            m_currLoop.start, m_currLoop.end,
+            m_currLoop.isEndGTStart,
+            m_currLoop.xFadeSamples, m_argXFadeTime,
+            loopSamples);
+    */
+    // store fade points for loop crossfades
+    m_currLoop.fadeoutFrame = sc_mod(m_currLoop.end - m_currLoop.xFadeSamples, m_bufFrames);
+    m_currLoop.rFadeoutFrame = sc_mod(m_currLoop.start + m_currLoop.xFadeSamples, m_bufFrames);
 }
 
 // return true if loop args changed w/o a trig, to signal that currLoop needs to be updated in ::next()
@@ -107,9 +133,15 @@ void XPlayBuf::readInputs() {
 
     float argLoopStart = in0(UGenInput::startPos);
     float argLoopDur = in0(UGenInput::loopDur);
-    m_loopChanged = (m_loopChanged || argLoopStart != m_argLoopStart || argLoopDur != m_argLoopDur);
+    float argXFadeTime = in0(UGenInput::xFadeTime);
+    m_loopChanged = (m_loopChanged ||
+            argLoopStart != m_argLoopStart ||
+            argLoopDur != m_argLoopDur ||
+            argXFadeTime != m_argXFadeTime
+    );
     m_argLoopStart = argLoopStart;
     m_argLoopDur = argLoopDur;
+    m_argXFadeTime = argXFadeTime;
 
     int argFadeSamples = static_cast<int32>(sc_floor(in0(UGenInput::fadeTime) * m_buf->samplerate + .5));
     if (argFadeSamples != m_totalFadeSamples) {
@@ -117,19 +149,6 @@ void XPlayBuf::readInputs() {
         m_totalFadeSamples = argFadeSamples;
         m_oneOverFadeSamples = m_totalFadeSamples > 0 ? sc_reciprocal(static_cast<float>(m_totalFadeSamples)) : 1.;
     }
-    float argXFadeTime = sc_min(in0(UGenInput::xFadeTime), argLoopDur);
-    int argXFadeSamples = static_cast<int32>(sc_floor(argXFadeTime * m_buf->samplerate + .5));
-    // xFadeTime = -1 means xFadeTime = fadeTime
-    if (argXFadeSamples < 0) {
-      if (m_totalXFadeSamples != m_totalFadeSamples) {
-          m_totalXFadeSamples = m_totalFadeSamples;
-          m_oneOverXFadeSamples = m_oneOverFadeSamples;
-      }
-    } else if (m_totalXFadeSamples != argXFadeSamples) {
-        m_totalXFadeSamples = argXFadeSamples;
-        m_oneOverXFadeSamples = argXFadeSamples > 0 ? sc_reciprocal(static_cast<float>(m_totalXFadeSamples)) : 1.;
-    }
-
 
     float trig = in0(UGenInput::trig);
     bool triggered = trig > 0.f && m_prevtrig <= 0.f;
@@ -147,7 +166,14 @@ void XPlayBuf::readInputs() {
 void XPlayBuf::startXFade() {
     m_prevLoop = m_currLoop;
     loadLoopArgs();
-    m_remainingXFadeSamples = m_totalXFadeSamples;
+    // update prevLoop xFade if changed
+    if (m_prevLoop.xFadeSamples != m_currLoop.xFadeSamples) {
+        m_prevLoop.end = sc_mod(
+            m_prevLoop.end - m_prevLoop.xFadeSamples + m_currLoop.xFadeSamples,
+            m_bufFrames
+        );
+    }
+    m_remainingXFadeSamples = m_currLoop.xFadeSamples;
     m_loopChanged = false; // currLoop was already updated: no need to signal ::next()
 }
 

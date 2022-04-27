@@ -15,6 +15,7 @@ struct Loop {
     int32 end = -1;
     int32 fadeoutFrame = 0;
     int32 rFadeoutFrame = 0;
+    int32 xFadeSamples = 0;
     float fade = 1.;
     bool isEndGTStart = false;
 };
@@ -55,11 +56,11 @@ private:
     int32 m_bufFrames;
     int32 m_totalFadeSamples;
     float m_oneOverFadeSamples;
-    int32 m_totalXFadeSamples;
     float m_remainingXFadeSamples;
     float m_oneOverXFadeSamples;
     float m_argLoopStart;
     float m_argLoopDur;
+    float m_argXFadeTime;
     float m_fbufnum;
     SndBuf* m_buf;
     double m_playbackRate;
