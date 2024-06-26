@@ -53,7 +53,8 @@ boundaries. Set to code::0:: to disable fading.
 argument::xFadeTime
 Duration in seconds of crossfades occurring on trigger and at loop boundaries.
 XPlayBuf will clip this value to be code::<= loopDur::. Set to code::0:: to disable crossfades. 
-
+Changes to xFadeTime will be sampled only on trigger or next loop iteration if
+looping.
 warning::
 to keep a consistent loop duration, xFadeTime prolongs the amount of buffer data read in a loop,
 e.g. for code::loopDur = 2:: and code::xFadeTime = 1:: every loop will play 3 seconds of data from the buffer, using the third second for fadeout.
